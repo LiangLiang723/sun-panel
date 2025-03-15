@@ -9,6 +9,9 @@ import { VisitMode } from '@/enums/auth'
 import SvgSrcBaidu from '@/assets/search_engine_svg/baidu.svg'
 import SvgSrcBing from '@/assets/search_engine_svg/bing.svg'
 import SvgSrcGoogle from '@/assets/search_engine_svg/google.svg'
+import SvgSrcMetaso from '@/assets/search_engine_svg/metaso.ico'
+import SvgSrcBilibili from '@/assets/search_engine_svg/bilibili.ico'
+import SvgSrcZhihu from '@/assets/search_engine_svg/zhihu.png'
 
 withDefaults(defineProps<{
   background?: string
@@ -47,6 +50,21 @@ const defaultSearchEngineList = ref<DeskModule.SearchBox.SearchEngine[]>([
     iconSrc: SvgSrcBing,
     title: 'Bing',
     url: 'https://www.bing.com/search?q=%s',
+  },
+  {
+    iconSrc: SvgSrcMetaso,
+    title: 'Metaso',
+    url: 'https://metaso.cn/search?q=%s',
+  },
+  {
+    iconSrc: SvgSrcBilibili,
+    title: 'Bilibili',
+    url: 'https://search.bilibili.com/all?keyword=%s',
+  },
+  {
+    iconSrc: SvgSrcZhihu,
+    title: 'Zhihu',
+    url: 'https://www.zhihu.com/search?type=content&q=%s',
   },
 ])
 

@@ -61,6 +61,11 @@ const state = ref<State>({ ...defaultState })
 const searchSuggestions = ref<string[]>([])
 const showSuggestions = ref(false)
 const suggestionTimeout = ref<number | null>(null)
+const activeIndex = ref(-1) // 当前选中建议的索引
+// 保存用户原始输入的内容，避免方向键选择时覆盖
+const originalTerm = ref('')
+// 标记搜索词变化是否由方向键导致
+const isArrowNavigation = ref(false)
 
 const onFocus = (): void => {
   isFocused.value = true
@@ -69,7 +74,78 @@ const onFocus = (): void => {
 }
 
 const onBlur = (): void => {
-  isFocused.value = false
+  // 添加短暂延时，以便用户可以点击搜索建议
+  setTimeout(() => {
+    isFocused.value = false
+  }, 200)
+}
+
+// 处理键盘导航
+function handleKeyDown(e: KeyboardEvent) {
+  if (!showSuggestions.value || !searchSuggestions.value.length) 
+    return
+
+  // 按下方向键：下一个建议
+  if (e.key === 'ArrowDown') {
+    e.preventDefault() // 防止光标移动到文本末尾
+    
+    // 保存原始输入内容（仅在首次按下方向键时）
+    if (activeIndex.value === -1) 
+      originalTerm.value = searchTerm.value
+    
+    // 标记为方向键导航
+    isArrowNavigation.value = true
+    
+    activeIndex.value = (activeIndex.value + 1) % searchSuggestions.value.length
+    // 只在UI中显示当前选中项，不触发搜索建议更新
+    searchTerm.value = searchSuggestions.value[activeIndex.value]
+    
+    // 重置标记，为下一次输入做准备
+    setTimeout(() => {
+      isArrowNavigation.value = false
+    }, 50)
+  }
+  // 按上方向键：上一个建议
+  else if (e.key === 'ArrowUp') {
+    e.preventDefault() // 防止光标移动到文本开始
+    
+    // 保存原始输入内容（仅在首次按下方向键时）
+    if (activeIndex.value === -1) 
+      originalTerm.value = searchTerm.value
+    
+    // 标记为方向键导航
+    isArrowNavigation.value = true
+    
+    activeIndex.value = activeIndex.value <= 0 
+      ? searchSuggestions.value.length - 1 
+      : activeIndex.value - 1
+    // 只在UI中显示当前选中项，不触发搜索建议更新
+    searchTerm.value = searchSuggestions.value[activeIndex.value]
+    
+    // 重置标记，为下一次输入做准备
+    setTimeout(() => {
+      isArrowNavigation.value = false
+    }, 50)
+  }
+  // 按Escape键：恢复原始输入
+  else if (e.key === 'Escape') {
+    if (originalTerm.value && activeIndex.value !== -1) {
+      searchTerm.value = originalTerm.value
+      originalTerm.value = ''
+      activeIndex.value = -1
+      e.stopPropagation() // 阻止冒泡，避免触发外层的Escape处理
+    }
+  }
+  // 按Enter键：直接执行搜索
+  else if (e.key === 'Enter') {
+    // 已经由外层事件处理，这里无需额外处理
+  }
+  // 任何其他按键：重置为原始状态，准备接受新输入
+  else if (e.key.length === 1 && activeIndex.value !== -1) {
+    originalTerm.value = ''
+    activeIndex.value = -1
+    // 不需要重置searchTerm，因为用户正在输入新内容
+  }
 }
 
 function handleEngineClick() {
@@ -117,11 +193,17 @@ function handleClearSearchTerm() {
   emits('itemSearch', searchTerm.value)
 }
 
-// 将选择建议函数提前定义并确保暴露给模板使用
-function selectSuggestion(suggestion: string) {
+// 将选择建议函数修改为填充搜索框，增加isMouseClick参数
+function selectSuggestion(suggestion: string, isMouseClick: boolean = false) {
   searchTerm.value = suggestion
-  showSuggestions.value = false
-  handleItemSearch()
+  
+  // 如果是鼠标点击，则直接执行搜索
+  if (isMouseClick) {
+    handleSearchClick()
+  } else {
+    // 否则只执行搜索但保持下拉框打开，直到用户离开搜索框
+    handleItemSearch()
+  }
 }
 
 // 获取搜索建议
@@ -129,6 +211,7 @@ async function fetchSuggestions(query: string) {
   if (!query) {
     searchSuggestions.value = []
     showSuggestions.value = false
+    activeIndex.value = -1 // 重置选中索引
     return
   }
 
@@ -139,11 +222,11 @@ async function fetchSuggestions(query: string) {
   // 设置延迟，避免频繁请求
   suggestionTimeout.value = setTimeout(async () => {
     try {
-      // 根据当前选择的搜索引擎获取搜索建议
-      const engine = state.value.currentSearchEngine.title.toLowerCase()
-      const suggestions = await fetchOnlineSuggestions(query, engine)
+      // 只使用百度搜索建议
+      const suggestions = await fetchBaiduSuggestions(query)
       searchSuggestions.value = suggestions
       showSuggestions.value = suggestions.length > 0
+      activeIndex.value = -1 // 重置选中索引
     }
     catch (error) {
       console.error('Failed to fetch suggestions:', error)
@@ -152,23 +235,6 @@ async function fetchSuggestions(query: string) {
       showSuggestions.value = false
     }
   }, 300) as unknown as number
-}
-
-// 从在线API获取搜索建议
-async function fetchOnlineSuggestions(query: string, engine: string = 'baidu'): Promise<string[]> {
-  if (!query || query.trim() === '') return []
-  
-  // 根据不同搜索引擎选择不同API
-  switch (engine) {
-    case 'baidu':
-      return await fetchBaiduSuggestions(query)
-    case 'google':
-      return await fetchGoogleSuggestions(query)
-    case 'bing':
-      return await fetchBingSuggestions(query)
-    default:
-      return await fetchBaiduSuggestions(query)
-  }
 }
 
 // 通过JSONP方式获取百度搜索建议
@@ -193,55 +259,17 @@ function fetchBaiduSuggestions(query: string): Promise<string[]> {
   })
 }
 
-// 获取Google搜索建议（需使用代理服务或自建API）
-async function fetchGoogleSuggestions(query: string): Promise<string[]> {
-  try {
-    // 使用公共CORS代理服务访问Google建议API
-    // 注意：在生产环境中应使用自己的代理服务
-    const proxyUrl = 'https://corsproxy.io/?'
-    const targetUrl = `http://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`
-    
-    const response = await fetch(proxyUrl + encodeURIComponent(targetUrl))
-    const data = await response.json()
-    
-    // Google API返回格式: [query, suggestions[]]
-    return data[1] || []
-  }
-  catch (error) {
-    console.error('Failed to fetch Google suggestions:', error)
-    return []
-  }
-}
-
-// 获取Bing搜索建议
-async function fetchBingSuggestions(query: string): Promise<string[]> {
-  try {
-    // 使用公共CORS代理访问Bing建议API
-    // 注意：在生产环境中应使用自己的代理服务
-    const proxyUrl = 'https://corsproxy.io/?'
-    const targetUrl = `https://api.bing.com/qsonhs.aspx?type=cb&q=${encodeURIComponent(query)}`
-    
-    const response = await fetch(proxyUrl + encodeURIComponent(targetUrl))
-    const data = await response.json()
-    
-    // 提取Bing建议结果
-    const suggestions = data?.AS?.Results?.[0]?.Suggests?.map((item: any) => item.Txt) || []
-    return suggestions
-  }
-  catch (error) {
-    console.error('Failed to fetch Bing suggestions:', error)
-    return []
-  }
-}
-
 // 监听搜索词变化
-watch(searchTerm, (newValue) => {
-  if (newValue) {
-    fetchSuggestions(newValue)
-  }
-  else {
-    searchSuggestions.value = []
-    showSuggestions.value = false
+watch(searchTerm, (newValue, oldValue) => {
+  // 只要不是由方向键导致的变化，都重新获取建议
+  if (!isArrowNavigation.value) {
+    if (newValue) {
+      fetchSuggestions(newValue)
+    }
+    else {
+      searchSuggestions.value = []
+      showSuggestions.value = false
+    }
   }
 })
 
@@ -256,7 +284,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="search-box w-full relative" @keydown.enter="handleSearchClick" @keydown.esc="handleClearSearchTerm">
+  <div class="search-box w-full relative" 
+       @keydown.enter="handleSearchClick" 
+       @keydown.esc="handleClearSearchTerm"
+       @keydown="handleKeyDown">
     <div class="search-container flex rounded-2xl items-center justify-center text-white w-full" :style="{ background, color: textColor }" :class="{ focused: isFocused }">
       <div class="search-box-btn-engine w-[40px] flex justify-center cursor-pointer" @click="handleEngineClick">
         <NAvatar :src="state.currentSearchEngine.iconSrc" style="background-color: transparent;" :size="20" />
@@ -272,13 +303,15 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 搜索建议 - 修改样式确保宽度一致 -->
-    <div v-if="showSuggestions && !searchSelectListShow" class="suggestions-container rounded-b-xl p-[5px]" :style="{ background }">
+    <!-- 搜索建议 - 使用与搜索引擎选择相同的样式 -->
+    <div v-if="showSuggestions && isFocused && !searchSelectListShow" class="w-full mt-[10px] rounded-xl p-[10px]" :style="{ background }">
       <div 
         v-for="(suggestion, index) in searchSuggestions" 
         :key="index"
-        class="suggestion-item p-[8px] rounded-lg cursor-pointer hover:bg-opacity-20 hover:bg-white flex items-center"
-        @click="selectSuggestion(suggestion)"
+        class="suggestion-item p-[8px] rounded-lg cursor-pointer flex items-center"
+        :class="{'active-suggestion': index === activeIndex, 'hover:bg-opacity-20 hover:bg-white': index !== activeIndex}"
+        @click="selectSuggestion(suggestion, true)"
+        @mouseover="activeIndex = index"
       >
         <SvgIcon class="mr-[8px]" style="width: 16px;height: 16px;" icon="iconamoon:search" />
         <span :style="{ color: textColor }">{{ suggestion }}</span>
@@ -351,21 +384,13 @@ input {
   font-size: 17px;
 }
 
-.suggestions-container {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  border: 1px solid rgba(204, 204, 204, 0.5);
-  border-top: none;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(5px);
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 10;
-}
-
 .suggestion-item {
   transition: background-color 0.2s;
+}
+
+.active-suggestion {
+  background-color: rgba(255, 255, 255, 0.3); /* 增强高亮效果 */
+  border-radius: 8px;
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.5); /* 添加轻微阴影增强效果 */
 }
 </style>

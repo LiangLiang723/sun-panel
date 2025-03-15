@@ -117,6 +117,13 @@ function handleClearSearchTerm() {
   emits('itemSearch', searchTerm.value)
 }
 
+// 将选择建议函数提前定义并确保暴露给模板使用
+function selectSuggestion(suggestion: string) {
+  searchTerm.value = suggestion
+  showSuggestions.value = false
+  handleItemSearch()
+}
+
 // 获取搜索建议
 async function fetchSuggestions(query: string) {
   if (!query) {
@@ -132,38 +139,99 @@ async function fetchSuggestions(query: string) {
   // 设置延迟，避免频繁请求
   suggestionTimeout.value = setTimeout(async () => {
     try {
-      // 这里可以接入真实的搜索建议API
-      // 例如百度：https://suggestion.baidu.com/su?wd=${query}&cb=callback
-      // 由于跨域问题，这里使用模拟数据
-      const suggestions = generateMockSuggestions(query)
+      // 根据当前选择的搜索引擎获取搜索建议
+      const engine = state.value.currentSearchEngine.title.toLowerCase()
+      const suggestions = await fetchOnlineSuggestions(query, engine)
       searchSuggestions.value = suggestions
       showSuggestions.value = suggestions.length > 0
     }
     catch (error) {
       console.error('Failed to fetch suggestions:', error)
+      // 如果API调用失败，回退到空数组
+      searchSuggestions.value = []
+      showSuggestions.value = false
     }
   }, 300) as unknown as number
 }
 
-// 生成模拟的搜索建议（实际使用时可替换为API调用）
-function generateMockSuggestions(query: string): string[] {
+// 从在线API获取搜索建议
+async function fetchOnlineSuggestions(query: string, engine: string = 'baidu'): Promise<string[]> {
   if (!query || query.trim() === '') return []
   
-  const commonPhrases = [
-    '如何', '什么是', '最好的', '教程', '下载', '价格',
-    '评测', '比较', '怎么样', '问题', '解决方案'
-  ]
-  
-  return [
-    query,
-    ...commonPhrases.map(phrase => `${query} ${phrase}`).slice(0, 5)
-  ].slice(0, 5)
+  // 根据不同搜索引擎选择不同API
+  switch (engine) {
+    case 'baidu':
+      return await fetchBaiduSuggestions(query)
+    case 'google':
+      return await fetchGoogleSuggestions(query)
+    case 'bing':
+      return await fetchBingSuggestions(query)
+    default:
+      return await fetchBaiduSuggestions(query)
+  }
 }
 
-function selectSuggestion(suggestion: string) {
-  searchTerm.value = suggestion
-  showSuggestions.value = false
-  handleItemSearch()
+// 通过JSONP方式获取百度搜索建议
+function fetchBaiduSuggestions(query: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    const callbackName = `baidu_suggestion_${Date.now()}`
+    
+    // 修复类型错误：正确定义全局回调函数
+    // 使用类型断言解决window对象上动态添加属性的类型问题
+    ;(window as any)[callbackName] = (data: any) => {
+      const suggestions = data?.s || []
+      resolve(suggestions)
+      document.body.removeChild(script)
+      // 同样使用类型断言移除属性
+      delete (window as any)[callbackName]
+    }
+    
+    // 创建script标签发送JSONP请求
+    const script = document.createElement('script')
+    script.src = `https://suggestion.baidu.com/su?wd=${encodeURIComponent(query)}&cb=${callbackName}`
+    document.body.appendChild(script)
+  })
+}
+
+// 获取Google搜索建议（需使用代理服务或自建API）
+async function fetchGoogleSuggestions(query: string): Promise<string[]> {
+  try {
+    // 使用公共CORS代理服务访问Google建议API
+    // 注意：在生产环境中应使用自己的代理服务
+    const proxyUrl = 'https://corsproxy.io/?'
+    const targetUrl = `http://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`
+    
+    const response = await fetch(proxyUrl + encodeURIComponent(targetUrl))
+    const data = await response.json()
+    
+    // Google API返回格式: [query, suggestions[]]
+    return data[1] || []
+  }
+  catch (error) {
+    console.error('Failed to fetch Google suggestions:', error)
+    return []
+  }
+}
+
+// 获取Bing搜索建议
+async function fetchBingSuggestions(query: string): Promise<string[]> {
+  try {
+    // 使用公共CORS代理访问Bing建议API
+    // 注意：在生产环境中应使用自己的代理服务
+    const proxyUrl = 'https://corsproxy.io/?'
+    const targetUrl = `https://api.bing.com/qsonhs.aspx?type=cb&q=${encodeURIComponent(query)}`
+    
+    const response = await fetch(proxyUrl + encodeURIComponent(targetUrl))
+    const data = await response.json()
+    
+    // 提取Bing建议结果
+    const suggestions = data?.AS?.Results?.[0]?.Suggests?.map((item: any) => item.Txt) || []
+    return suggestions
+  }
+  catch (error) {
+    console.error('Failed to fetch Bing suggestions:', error)
+    return []
+  }
 }
 
 // 监听搜索词变化
@@ -188,7 +256,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="search-box w-full" @keydown.enter="handleSearchClick" @keydown.esc="handleClearSearchTerm">
+  <div class="search-box w-full relative" @keydown.enter="handleSearchClick" @keydown.esc="handleClearSearchTerm">
     <div class="search-container flex rounded-2xl items-center justify-center text-white w-full" :style="{ background, color: textColor }" :class="{ focused: isFocused }">
       <div class="search-box-btn-engine w-[40px] flex justify-center cursor-pointer" @click="handleEngineClick">
         <NAvatar :src="state.currentSearchEngine.iconSrc" style="background-color: transparent;" :size="20" />
@@ -204,8 +272,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 搜索建议 -->
-    <div v-if="showSuggestions && !searchSelectListShow" class="suggestions-container w-full mt-[2px] rounded-b-xl p-[5px]" :style="{ background }">
+    <!-- 搜索建议 - 修改样式确保宽度一致 -->
+    <div v-if="showSuggestions && !searchSelectListShow" class="suggestions-container rounded-b-xl p-[5px]" :style="{ background }">
       <div 
         v-for="(suggestion, index) in searchSuggestions" 
         :key="index"
@@ -284,13 +352,16 @@ input {
 }
 
 .suggestions-container {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
   border: 1px solid rgba(204, 204, 204, 0.5);
   border-top: none;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(5px);
   max-height: 200px;
   overflow-y: auto;
-  position: absolute;
   z-index: 10;
 }
 

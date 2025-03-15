@@ -34,14 +34,14 @@ const isFocused = ref(false)
 const searchSelectListShow = ref(false)
 const defaultSearchEngineList = ref<DeskModule.SearchBox.SearchEngine[]>([
   {
-    iconSrc: SvgSrcGoogle,
-    title: 'Google',
-    url: 'https://www.google.com/search?q=%s',
-  },
-  {
     iconSrc: SvgSrcBaidu,
     title: 'Baidu',
     url: 'https://www.baidu.com/s?wd=%s',
+  },
+  {
+    iconSrc: SvgSrcGoogle,
+    title: 'Google',
+    url: 'https://www.google.com/search?q=%s',
   },
   {
     iconSrc: SvgSrcBing,
@@ -149,11 +149,11 @@ onMounted(() => {
           >
             <NAvatar :src="item.iconSrc" style="background-color: transparent;" :size="20" />
           </div>
-        <!-- <div class="w-[40px] h-[40px] ml-[10px] flex justify-center items-center cursor-pointer" @click="handleEngineClick">
-          <NAvatar style="background-color: transparent;" :size="30">
-            <SvgIcon icon="lets-icons:setting-alt-fill" style="font-size: 20px;" />
-          </NAvatar>
-        </div> -->
+          <div class="w-[40px] h-[40px] ml-[10px] flex justify-center items-center cursor-pointer" @click="handleEngineClick">
+            <NAvatar style="background-color: transparent;" :size="30">
+              <SvgIcon icon="lets-icons:setting-alt-fill" style="font-size: 20px;" />
+            </NAvatar>
+          </div>
         </div>
       </div>
 

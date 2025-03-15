@@ -135,7 +135,7 @@ func NotFoundAndCreateUser(db *gorm.DB) error {
 		if err != gorm.ErrRecordNotFound {
 			return err
 		}
-		username := "admin@sun.cc"
+		username := "xianyu"
 		fUser.Mail = username
 		fUser.Username = username
 		fUser.Name = username

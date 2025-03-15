@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineEmits, onMounted, ref } from 'vue'
+import { defineEmits, onMounted, ref, watch } from 'vue'
 import { NAvatar, NCheckbox } from 'naive-ui'
 import { SvgIcon } from '@/components/common'
 import { useModuleConfig } from '@/store/modules'
@@ -58,8 +58,14 @@ const defaultState: State = {
 
 const state = ref<State>({ ...defaultState })
 
+const searchSuggestions = ref<string[]>([])
+const showSuggestions = ref(false)
+const suggestionTimeout = ref<number | null>(null)
+
 const onFocus = (): void => {
   isFocused.value = true
+  if (searchTerm.value)
+    fetchSuggestions(searchTerm.value)
 }
 
 const onBlur = (): void => {
@@ -106,8 +112,70 @@ const handleItemSearch = () => {
 
 function handleClearSearchTerm() {
   searchTerm.value = ''
+  searchSuggestions.value = []
+  showSuggestions.value = false
   emits('itemSearch', searchTerm.value)
 }
+
+// 获取搜索建议
+async function fetchSuggestions(query: string) {
+  if (!query) {
+    searchSuggestions.value = []
+    showSuggestions.value = false
+    return
+  }
+
+  // 清除之前的超时
+  if (suggestionTimeout.value)
+    clearTimeout(suggestionTimeout.value)
+
+  // 设置延迟，避免频繁请求
+  suggestionTimeout.value = setTimeout(async () => {
+    try {
+      // 这里可以接入真实的搜索建议API
+      // 例如百度：https://suggestion.baidu.com/su?wd=${query}&cb=callback
+      // 由于跨域问题，这里使用模拟数据
+      const suggestions = generateMockSuggestions(query)
+      searchSuggestions.value = suggestions
+      showSuggestions.value = suggestions.length > 0
+    }
+    catch (error) {
+      console.error('Failed to fetch suggestions:', error)
+    }
+  }, 300) as unknown as number
+}
+
+// 生成模拟的搜索建议（实际使用时可替换为API调用）
+function generateMockSuggestions(query: string): string[] {
+  if (!query || query.trim() === '') return []
+  
+  const commonPhrases = [
+    '如何', '什么是', '最好的', '教程', '下载', '价格',
+    '评测', '比较', '怎么样', '问题', '解决方案'
+  ]
+  
+  return [
+    query,
+    ...commonPhrases.map(phrase => `${query} ${phrase}`).slice(0, 5)
+  ].slice(0, 5)
+}
+
+function selectSuggestion(suggestion: string) {
+  searchTerm.value = suggestion
+  showSuggestions.value = false
+  handleItemSearch()
+}
+
+// 监听搜索词变化
+watch(searchTerm, (newValue) => {
+  if (newValue) {
+    fetchSuggestions(newValue)
+  }
+  else {
+    searchSuggestions.value = []
+    showSuggestions.value = false
+  }
+})
 
 onMounted(() => {
   moduleConfig.getValueByNameFromCloud<State>('deskModuleSearchBox').then(({ code, data }) => {
@@ -133,6 +201,19 @@ onMounted(() => {
       </div>
       <div class="search-box-btn-search w-[25px] flex justify-center cursor-pointer" @click="handleSearchClick">
         <SvgIcon style="width: 20px;height: 20px;" icon="iconamoon:search-fill" />
+      </div>
+    </div>
+
+    <!-- 搜索建议 -->
+    <div v-if="showSuggestions && !searchSelectListShow" class="suggestions-container w-full mt-[2px] rounded-b-xl p-[5px]" :style="{ background }">
+      <div 
+        v-for="(suggestion, index) in searchSuggestions" 
+        :key="index"
+        class="suggestion-item p-[8px] rounded-lg cursor-pointer hover:bg-opacity-20 hover:bg-white flex items-center"
+        @click="selectSuggestion(suggestion)"
+      >
+        <SvgIcon class="mr-[8px]" style="width: 16px;height: 16px;" icon="iconamoon:search" />
+        <span :style="{ color: textColor }">{{ suggestion }}</span>
       </div>
     </div>
 
@@ -200,5 +281,20 @@ input {
   border: none;
   outline: none;
   font-size: 17px;
+}
+
+.suggestions-container {
+  border: 1px solid rgba(204, 204, 204, 0.5);
+  border-top: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(5px);
+  max-height: 200px;
+  overflow-y: auto;
+  position: absolute;
+  z-index: 10;
+}
+
+.suggestion-item {
+  transition: background-color 0.2s;
 }
 </style>

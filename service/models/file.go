@@ -9,6 +9,8 @@ type File struct {
 	Ext      string `gorm:"varchar(255)" json:"ext"`      // 扩展名
 }
 
+// 如果需要添加或修改文件模型中的字段，在这里进行
+
 // 添加一个文件记录
 func (m *File) AddFile(userId uint, fileName, ext, src string) (File, error) {
 	file := File{

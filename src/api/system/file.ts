@@ -12,3 +12,16 @@ export function deletes<T>(ids: number[]) {
     data: { ids },
   })
 }
+
+/**
+ * 重命名文件
+ * @param id 文件ID
+ * @param newFileName 新文件名
+ * @returns 
+ */
+export function rename<T>(id: number, newFileName: string) {
+  return post<T>({
+    url: '/file/rename',
+    data: { id, fileName: newFileName }
+  })
+}

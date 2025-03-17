@@ -151,3 +151,40 @@ func (a *FileApi) Deletes(c *gin.Context) {
 	apiReturn.Success(c)
 
 }
+
+// Rename 重命名文件
+func (a *FileApi) Rename(c *gin.Context) {
+	type Request struct {
+		ID       uint   `json:"id"`
+		FileName string `json:"fileName"`
+	}
+
+	req := Request{}
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		apiReturn.ErrorParamFomat(c, err.Error())
+		return
+	}
+
+	// 获取当前用户信息
+	userInfo, _ := base.GetCurrentUserInfo(c)
+
+	// 查找文件记录
+	fileInfo := models.File{}
+	if err := global.Db.First(&fileInfo, "id = ? AND user_id = ?", req.ID, userInfo.ID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			apiReturn.ErrorDataNotFound(c)
+			return
+		} else {
+			apiReturn.ErrorDatabase(c, err.Error())
+			return
+		}
+	}
+
+	// 更新文件名称
+	if err := global.Db.Model(&fileInfo).Update("file_name", req.FileName).Error; err != nil {
+		apiReturn.ErrorDatabase(c, err.Error())
+		return
+	}
+
+	apiReturn.Success(c)
+}

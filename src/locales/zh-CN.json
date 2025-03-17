@@ -105,6 +105,7 @@
     },
     "uploadsFileManager": {
       "alertText": "你可以在这里管理你上传过的壁纸和图标",
+      "allFiles": "全部文件",
       "appName": "上传文件管理",
       "copyFailed": "复制失败",
       "copyLink": "复制链接",
@@ -113,8 +114,12 @@
       "enterNewFilename": "输入新文件名",
       "fileName": "原文件名",
       "infoTitle": "文件详情",
+      "noOriginalFiles": "没有找到原始文件",
+      "noRenamedFiles": "没有找到已重命名文件",
       "nothingText": "你还没有上传过任何图片",
+      "originalFiles": "原始文件",
       "path": "文件路径",
+      "renamedFiles": "已重命名文件",
       "setWallpaper": "设置为壁纸",
       "uploadTime": "上传时间"
     },

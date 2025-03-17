@@ -1,8 +1,9 @@
 import { post } from '@/utils/request'
 
-export function getList<T>() {
+export function getList<T>(group?: string) {
   return post<T>({
     url: '/file/getList',
+    data: group ? { group } : undefined
   })
 }
 

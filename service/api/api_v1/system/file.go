@@ -100,16 +100,41 @@ func (a *FileApi) UploadFiles(c *gin.Context) {
 }
 
 func (a *FileApi) GetList(c *gin.Context) {
+	type Request struct {
+		Group string `json:"group"` // 可选的分组参数: all, original, renamed
+	}
+
+	req := Request{}
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		// 如果绑定失败，使用默认值"all"
+		req.Group = "all"
+	}
+
 	list := []models.File{}
 	userInfo, _ := base.GetCurrentUserInfo(c)
 	var count int64
-	if err := global.Db.Order("created_at desc").Find(&list, "user_id=?", userInfo.ID).Count(&count).Error; err != nil {
+
+	db := global.Db.Where("user_id=?", userInfo.ID)
+
+	// 根据分组过滤
+	if req.Group == "renamed" {
+		db = db.Where("src LIKE ?", "%/managed_user%")
+	} else if req.Group == "original" {
+		db = db.Where("src NOT LIKE ?", "%/managed_user%")
+	}
+
+	if err := db.Order("created_at desc").Find(&list).Count(&count).Error; err != nil {
 		apiReturn.ErrorDatabase(c, err.Error())
 		return
 	}
 
 	data := []map[string]interface{}{}
 	for _, v := range list {
+		fileType := "original"
+		if strings.Contains(v.Src, "/managed_user") {
+			fileType = "renamed"
+		}
+
 		data = append(data, map[string]interface{}{
 			"src":        v.Src[1:],
 			"fileName":   v.FileName,
@@ -117,6 +142,7 @@ func (a *FileApi) GetList(c *gin.Context) {
 			"createTime": v.CreatedAt,
 			"updateTime": v.UpdatedAt,
 			"path":       v.Src,
+			"fileType":   fileType,
 		})
 	}
 	apiReturn.SuccessListData(c, data, count)

@@ -105,6 +105,7 @@
     },
     "uploadsFileManager": {
       "alertText": "Here you can manage wallpapers and icons you have uploaded.",
+      "allFiles": "All Files",
       "appName": "Upload File Management",
       "copyFailed": "Copy failed",
       "copyLink": "Copy link",
@@ -113,8 +114,12 @@
       "enterNewFilename": "Enter new file name",
       "fileName": "Original file name",
       "infoTitle": "File details",
+      "noOriginalFiles": "No original files found",
+      "noRenamedFiles": "No renamed files found",
       "nothingText": "You haven't uploaded any images yet.",
+      "originalFiles": "Original Files",
       "path": "File path",
+      "renamedFiles": "Renamed Files",
       "setWallpaper": "Set as wallpaper",
       "uploadTime": "Upload time"
     },

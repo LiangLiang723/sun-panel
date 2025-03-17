@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NSpin, useDialog, useMessage } from 'naive-ui'
+import { NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NRadioButton, NRadioGroup, NSpin, useDialog, useMessage } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { deletes, getList, rename } from '@/api/system/file'
 import { set as savePanelConfig } from '@/api/panel/userConfig'
@@ -26,6 +26,7 @@ const ms = useMessage()
 const dialog = useDialog()
 const panelStore = usePanelState()
 const loading = ref(false)
+const activeGroup = ref('all') // 当前激活的分组
 const infoModalState = ref<InfoModalState>({
   show: false,
   title: '',
@@ -37,12 +38,31 @@ const renameModalState = ref<RenameModalState>({
   newFileName: '',
 })
 
-const filteredImageList = computed(() => {
-  if (!searchQuery.value) return imageList.value
+const groupedImageList = computed(() => {
+  if (!searchQuery.value) {
+    if (activeGroup.value === 'all') {
+      return imageList.value
+    } else if (activeGroup.value === 'renamed') {
+      return imageList.value.filter(item => item.src.includes('/managed_user'))
+    } else if (activeGroup.value === 'original') {
+      return imageList.value.filter(item => !item.src.includes('/managed_user'))
+    }
+  }
   
-  return imageList.value.filter(item => 
+  // 如果有搜索词，先按搜索词过滤，再按分组过滤
+  let filteredList = imageList.value.filter(item => 
     item.fileName.toLowerCase().includes(searchQuery.value.toLowerCase())
   )
+  
+  if (activeGroup.value === 'all') {
+    return filteredList
+  } else if (activeGroup.value === 'renamed') {
+    return filteredList.filter(item => item.src.includes('/managed_user'))
+  } else if (activeGroup.value === 'original') {
+    return filteredList.filter(item => !item.src.includes('/managed_user'))
+  }
+  
+  return filteredList
 })
 
 async function getFileList() {
@@ -132,6 +152,11 @@ function clearSearch() {
   searchQuery.value = ''
 }
 
+// 切换分组
+function handleGroupChange(value: string) {
+  activeGroup.value = value
+}
+
 onMounted(() => {
   getFileList()
 })
@@ -140,26 +165,38 @@ onMounted(() => {
 <template>
   <div class="bg-slate-200 dark:bg-zinc-900 p-2 h-full">
     <NSpin v-show="loading" size="small" />
-    <!-- <NAlert type="info" :bordered="false">
-      {{ $t('apps.uploadsFileManager.alertText') }}
-    </NAlert> -->
     
-    <!-- 搜索功能 -->
-    <div class="mt-2 mb-3 flex">
-      <NInput v-model:value="searchQuery" 
-              :placeholder="$t('common.search')" 
-              clearable
-              @clear="clearSearch">
-        <template #prefix>
-          <SvgIcon icon="ion-search" />
-        </template>
-      </NInput>
+    <div class="flex flex-wrap justify-between items-center mt-2 mb-3 gap-3">
+      <!-- 分组选择器 -->
+      <NRadioGroup v-model:value="activeGroup" @update:value="handleGroupChange" size="small">
+        <NRadioButton value="all">{{ $t('apps.uploadsFileManager.allFiles') }}</NRadioButton>
+        <NRadioButton value="original">{{ $t('apps.uploadsFileManager.originalFiles') }}</NRadioButton>
+        <NRadioButton value="renamed">{{ $t('apps.uploadsFileManager.renamedFiles') }}</NRadioButton>
+      </NRadioGroup>
+      
+      <!-- 搜索功能 -->
+      <div class="flex flex-1 max-w-xs">
+        <NInput v-model:value="searchQuery" 
+                :placeholder="$t('common.search')" 
+                clearable
+                @clear="clearSearch">
+          <template #prefix>
+            <SvgIcon icon="ion-search" />
+          </template>
+        </NInput>
+      </div>
     </div>
 
     <div class="flex justify-center mt-2">
-      <div v-if="filteredImageList.length === 0 && !loading" class="flex">
+      <div v-if="groupedImageList.length === 0 && !loading" class="flex">
         <template v-if="searchQuery">
           {{ $t('common.noSearchResults') }}
+        </template>
+        <template v-else-if="activeGroup === 'renamed'">
+          {{ $t('apps.uploadsFileManager.noRenamedFiles') }}
+        </template>
+        <template v-else-if="activeGroup === 'original'">
+          {{ $t('apps.uploadsFileManager.noOriginalFiles') }}
         </template>
         <template v-else>
           {{ $t('apps.uploadsFileManager.nothingText') }}
@@ -167,7 +204,7 @@ onMounted(() => {
       </div>
       <NImageGroup v-else>
         <NGrid cols="2 300:2 600:4 900:6 1100:9" :x-gap="5" :y-gap="5">
-          <NGridItem v-for="(item, index) in filteredImageList" :key="index">
+          <NGridItem v-for="(item, index) in groupedImageList" :key="index">
             <NCard size="small" style="border-radius: 5px;" :bordered="true">
               <template #cover>
                 <div class="card transparent-grid">

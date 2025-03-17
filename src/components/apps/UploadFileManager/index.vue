@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { NAlert, NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NSpin, useDialog, useMessage } from 'naive-ui'
-import { onMounted, ref } from 'vue'
-import { deletes, getList } from '@/api/system/file'
+import { NAlert, NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NSpin, useDialog, useMessage } from 'naive-ui'
+import { computed, onMounted, ref } from 'vue'
+import { deletes, getList, rename } from '@/api/system/file'
 import { set as savePanelConfig } from '@/api/panel/userConfig'
 import { RoundCardModal, SvgIcon } from '@/components/common'
 import { copyToClipboard, timeFormat } from '@/utils/cmn'
@@ -13,7 +13,15 @@ interface InfoModalState {
   show: boolean
   fileInfo: File.Info | null
 }
+
+interface RenameModalState {
+  show: boolean
+  fileInfo: File.Info | null
+  newFileName: string
+}
+
 const imageList = ref<File.Info[]>([])
+const searchQuery = ref('')
 const ms = useMessage()
 const dialog = useDialog()
 const panelStore = usePanelState()
@@ -22,6 +30,19 @@ const infoModalState = ref<InfoModalState>({
   show: false,
   title: '',
   fileInfo: null,
+})
+const renameModalState = ref<RenameModalState>({
+  show: false,
+  fileInfo: null,
+  newFileName: '',
+})
+
+const filteredImageList = computed(() => {
+  if (!searchQuery.value) return imageList.value
+  
+  return imageList.value.filter(item => 
+    item.fileName.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
 })
 
 async function getFileList() {
@@ -35,7 +56,6 @@ async function copyImageUrl(text: string) {
   const res = await copyToClipboard(text)
   if (res)
     ms.success(t('apps.uploadsFileManager.copySuccess'))
-
   else
     ms.error(t('apps.uploadsFileManager.copyFailed'))
 }
@@ -78,6 +98,40 @@ function handleSetWallpaper(imgSrc: string) {
   savePanelConfig({ panel: panelStore.panelConfig })
 }
 
+function handleRenameClick(fileInfo: File.Info) {
+  renameModalState.value.fileInfo = fileInfo
+  renameModalState.value.newFileName = fileInfo.fileName
+  renameModalState.value.show = true
+}
+
+async function submitRename() {
+  if (!renameModalState.value.fileInfo || !renameModalState.value.newFileName.trim()) {
+    ms.error(t('common.invalidInput'))
+    return
+  }
+  
+  try {
+    const { code, msg } = await rename(
+      renameModalState.value.fileInfo.id as number, 
+      renameModalState.value.newFileName
+    )
+    
+    if (code === 0) {
+      ms.success(t('common.success'))
+      renameModalState.value.show = false
+      getFileList()
+    } else {
+      ms.error(`${t('common.failed')}: ${msg}`)
+    }
+  } catch (error) {
+    ms.error(t('common.failed'))
+  }
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+}
+
 onMounted(() => {
   getFileList()
 })
@@ -89,13 +143,31 @@ onMounted(() => {
     <NAlert type="info" :bordered="false">
       {{ $t('apps.uploadsFileManager.alertText') }}
     </NAlert>
+    
+    <!-- 搜索功能 -->
+    <div class="mt-2 mb-3 flex">
+      <NInput v-model:value="searchQuery" 
+              :placeholder="$t('common.search')" 
+              clearable
+              @clear="clearSearch">
+        <template #prefix>
+          <SvgIcon icon="ion-search" />
+        </template>
+      </NInput>
+    </div>
+
     <div class="flex justify-center mt-2">
-      <div v-if="imageList.length === 0 && !loading" class="flex">
-        {{ $t('apps.uploadsFileManager.nothingText') }}
+      <div v-if="filteredImageList.length === 0 && !loading" class="flex">
+        <template v-if="searchQuery">
+          {{ $t('common.noSearchResults') }}
+        </template>
+        <template v-else>
+          {{ $t('apps.uploadsFileManager.nothingText') }}
+        </template>
       </div>
       <NImageGroup v-else>
         <NGrid cols="2 300:2 600:4 900:6 1100:9" :x-gap="5" :y-gap="5">
-          <NGridItem v-for=" item, index in imageList" :key="index">
+          <NGridItem v-for="(item, index) in filteredImageList" :key="index">
             <NCard size="small" style="border-radius: 5px;" :bordered="true">
               <template #cover>
                 <div class="card transparent-grid">
@@ -113,6 +185,11 @@ onMounted(() => {
                     <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('apps.uploadsFileManager.copyLink')" @click="copyImageUrl(item.src)">
                       <template #icon>
                         <SvgIcon icon="ion-copy" />
+                      </template>
+                    </NButton>
+                    <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('common.rename')" @click="handleRenameClick(item)">
+                      <template #icon>
+                        <SvgIcon icon="mdi-pencil-outline" />
                       </template>
                     </NButton>
                     <NButton size="tiny" tertiary style="cursor: pointer;" :title="timeFormat(item.createTime)" @click="handleInfoClick(item)">
@@ -139,6 +216,7 @@ onMounted(() => {
       </NImageGroup>
     </div>
 
+    <!-- 文件信息模态框 -->
     <RoundCardModal v-model:show="infoModalState.show" style="max-width: 300px;" size="small" :title="$t('apps.uploadsFileManager.infoTitle')">
       <div>
         <div>
@@ -166,6 +244,17 @@ onMounted(() => {
               {{ timeFormat(infoModalState.fileInfo?.createTime) }}
             </div>
           </div>
+        </div>
+      </div>
+    </RoundCardModal>
+
+    <!-- 重命名模态框 -->
+    <RoundCardModal v-model:show="renameModalState.show" style="max-width: 350px;" size="small" :title="$t('common.rename')">
+      <div>
+        <NInput v-model:value="renameModalState.newFileName" :placeholder="$t('apps.uploadsFileManager.enterNewFilename')" />
+        <div class="flex justify-end gap-2 mt-4">
+          <NButton @click="renameModalState.show = false">{{ $t('common.cancel') }}</NButton>
+          <NButton type="primary" @click="submitRename">{{ $t('common.confirm') }}</NButton>
         </div>
       </div>
     </RoundCardModal>

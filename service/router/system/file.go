@@ -18,7 +18,6 @@ func InitFileRouter(router *gin.RouterGroup) {
 
 		private.POST("/file/getList", FileApi.GetList)
 		private.POST("/file/deletes", FileApi.Deletes)
-
+		private.POST("/file/rename", FileApi.Rename) // 添加重命名接口
 	}
-
 }

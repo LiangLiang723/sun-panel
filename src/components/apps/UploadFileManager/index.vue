@@ -140,9 +140,9 @@ onMounted(() => {
 <template>
   <div class="bg-slate-200 dark:bg-zinc-900 p-2 h-full">
     <NSpin v-show="loading" size="small" />
-    <NAlert type="info" :bordered="false">
+    <!-- <NAlert type="info" :bordered="false">
       {{ $t('apps.uploadsFileManager.alertText') }}
-    </NAlert>
+    </NAlert> -->
     
     <!-- 搜索功能 -->
     <div class="mt-2 mb-3 flex">

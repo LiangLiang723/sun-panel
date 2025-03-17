@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAlert, NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NSpin, useDialog, useMessage } from 'naive-ui'
+import { NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NSpin, useDialog, useMessage } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { deletes, getList, rename } from '@/api/system/file'
 import { set as savePanelConfig } from '@/api/panel/userConfig'

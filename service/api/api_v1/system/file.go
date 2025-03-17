@@ -180,8 +180,46 @@ func (a *FileApi) Rename(c *gin.Context) {
 		}
 	}
 
-	// 更新文件名称
-	if err := global.Db.Model(&fileInfo).Update("file_name", req.FileName).Error; err != nil {
+	// 文件系统操作 - 重命名并移动文件
+	configUpload := global.Config.GetValueString("base", "source_path")
+
+	// 创建统一管理的文件夹
+	managedDir := fmt.Sprintf("%s/managed_user%d/", configUpload, userInfo.ID)
+	isExist, _ := cmn.PathExists(managedDir)
+	if !isExist {
+		if err := os.MkdirAll(managedDir, os.ModePerm); err != nil {
+			apiReturn.Error(c, fmt.Sprintf("Failed to create directory: %s", err.Error()))
+			return
+		}
+	}
+
+	// 获取原文件扩展名
+	fileExt := path.Ext(fileInfo.Src)
+
+	// 构建新文件名和路径
+	newFileName := req.FileName
+	if path.Ext(newFileName) == "" {
+		newFileName = fmt.Sprintf("%s%s", newFileName, fileExt) // 如果新文件名没有扩展名，添加原扩展名
+	}
+
+	// 在managed目录中的新路径
+	newFilePath := fmt.Sprintf("%s%s", managedDir, newFileName)
+
+	// 移动并重命名文件
+	if err := os.Rename(fileInfo.Src, newFilePath); err != nil {
+		apiReturn.Error(c, fmt.Sprintf("Failed to rename file: %s", err.Error()))
+		return
+	}
+
+	// 更新数据库记录
+	updates := map[string]interface{}{
+		"file_name": req.FileName,
+		"src":       newFilePath,
+	}
+
+	if err := global.Db.Model(&fileInfo).Updates(updates).Error; err != nil {
+		// 如果数据库更新失败，尝试将文件移回原位置
+		os.Rename(newFilePath, fileInfo.Src)
 		apiReturn.ErrorDatabase(c, err.Error())
 		return
 	}

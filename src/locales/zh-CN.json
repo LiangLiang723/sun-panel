@@ -113,6 +113,8 @@
       "deleteWarningText": "删除后无法恢复，你确定要继续吗？",
       "enterNewFilename": "输入新文件名",
       "fileName": "原文件名",
+      "fileNameConflict": "已存在同名文件。您是否要覆盖它？",
+      "overwrite": "覆盖",
       "infoTitle": "文件详情",
       "noOriginalFiles": "没有找到原始文件",
       "noRenamedFiles": "没有找到已重命名文件",

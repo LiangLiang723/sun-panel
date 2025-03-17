@@ -157,7 +157,10 @@ func (a *FileApi) Deletes(c *gin.Context) {
 		return
 	}
 
-	global.Db.Transaction(func(tx *gorm.DB) error {
+	// 设置一个错误收集器
+	var deleteErrors []string
+
+	err := global.Db.Transaction(func(tx *gorm.DB) error {
 		files := []models.File{}
 
 		if err := tx.Order("created_at desc").Find(&files, "user_id=? AND id in ?", userInfo.ID, req.Ids).Error; err != nil {
@@ -165,21 +168,50 @@ func (a *FileApi) Deletes(c *gin.Context) {
 		}
 
 		for _, v := range files {
-			os.Remove(v.Src)
+			// 清理路径，确保格式正确
+			srcPath := v.Src
+			// 移除可能存在的路径前缀问题
+			srcPath = strings.Replace(srcPath, "/./", "/", -1)
+
+			// 尝试删除文件
+			err := os.Remove(srcPath)
+			if err != nil {
+				// 如果删除失败，尝试替代路径
+				altPath := strings.TrimPrefix(srcPath, "/")
+				err = os.Remove(altPath)
+
+				// 如果仍然失败，记录错误，但继续处理其他文件
+				if err != nil {
+					deleteErrors = append(deleteErrors, fmt.Sprintf("Failed to delete file %s: %s", v.FileName, err.Error()))
+				}
+			}
 		}
 
-		if err := tx.Order("created_at desc").Delete(&files, "user_id=? AND id in ?", userInfo.ID, req.Ids).Error; err != nil {
+		// 即使物理文件删除失败，仍然删除数据库记录
+		if err := tx.Delete(&files, "user_id=? AND id in ?", userInfo.ID, req.Ids).Error; err != nil {
 			return err
 		}
 
 		return nil
 	})
 
-	apiReturn.Success(c)
+	if err != nil {
+		apiReturn.ErrorDatabase(c, err.Error())
+		return
+	}
 
+	// 如果有删除错误，返回警告信息，但仍标记为成功（因为数据库记录已删除）
+	if len(deleteErrors) > 0 {
+		apiReturn.SuccessData(c, gin.H{
+			"warnings": deleteErrors,
+			"message":  "Some files could not be physically removed but database records were deleted",
+		})
+		return
+	}
+
+	apiReturn.Success(c)
 }
 
-// Rename 重命名文件
 func (a *FileApi) Rename(c *gin.Context) {
 	type Request struct {
 		ID       uint   `json:"id"`

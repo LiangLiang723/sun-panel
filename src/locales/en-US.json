@@ -130,7 +130,8 @@
       "refreshSuccess": "Files refreshed successfully",
       "renamedFiles": "Renamed Files",
       "setWallpaper": "Set as wallpaper",
-      "uploadTime": "Upload time"
+      "uploadTime": "Upload time",
+      "deletePartialSuccess": "The file was removed from the list, but could not be physically deleted from disk"
     },
     "userInfo": {
       "appName": "My Information",

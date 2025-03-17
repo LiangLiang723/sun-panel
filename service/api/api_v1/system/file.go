@@ -183,6 +183,7 @@ func (a *FileApi) Rename(c *gin.Context) {
 	type Request struct {
 		ID       uint   `json:"id"`
 		FileName string `json:"fileName"`
+		Force    bool   `json:"force"` // 是否强制覆盖现有文件
 	}
 
 	req := Request{}
@@ -230,6 +231,18 @@ func (a *FileApi) Rename(c *gin.Context) {
 
 	// 在managed目录中的新路径
 	newFilePath := fmt.Sprintf("%s%s", managedDir, newFileName)
+
+	// 检查目标文件是否已存在
+	targetExists, _ := cmn.PathExists(newFilePath)
+	if targetExists && !req.Force {
+		// 如果目标文件已存在，且不是强制覆盖模式，返回冲突状态
+		apiReturn.SuccessData(c, gin.H{
+			"conflict":   true,
+			"message":    "File with this name already exists",
+			"targetPath": newFilePath,
+		})
+		return
+	}
 
 	// 移动并重命名文件
 	if err := os.Rename(fileInfo.Src, newFilePath); err != nil {

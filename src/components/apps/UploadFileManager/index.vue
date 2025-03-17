@@ -20,6 +20,20 @@ interface RenameModalState {
   newFileName: string
 }
 
+// 定义文件重命名响应数据接口
+interface RenameResponseData {
+  conflict: boolean;
+  message?: string;
+  targetPath?: string;
+}
+
+// 定义文件重命名响应接口
+interface RenameResponse {
+  code: number;
+  msg?: string;
+  data?: RenameResponseData;
+}
+
 const imageList = ref<File.Info[]>([])
 const searchQuery = ref('')
 const ms = useMessage()
@@ -131,15 +145,45 @@ async function submitRename() {
   }
   
   try {
-    const { code, msg } = await rename(
+    const response = await rename<RenameResponse>(
       renameModalState.value.fileInfo.id as number, 
       renameModalState.value.newFileName
     )
     
+    const { code, msg, data } = response
+    
     if (code === 0) {
-      ms.success(t('common.success'))
-      renameModalState.value.show = false
-      getFileList()
+      // 使用更明确的类型检查
+      if (data && 'conflict' in data && data.conflict) {
+        // 文件名冲突，询问用户是否覆盖
+        dialog.warning({
+          title: t('common.warning'),
+          content: t('apps.uploadsFileManager.fileNameConflict'),
+          positiveText: t('apps.uploadsFileManager.overwrite'),
+          negativeText: t('common.cancel'),
+          onPositiveClick: async () => {
+            // 用户选择覆盖，发送强制覆盖请求
+            const { code, msg } = await rename<RenameResponse>(
+              renameModalState.value.fileInfo!.id as number, 
+              renameModalState.value.newFileName,
+              true // 强制覆盖
+            )
+            
+            if (code === 0) {
+              ms.success(t('common.success'))
+              renameModalState.value.show = false
+              getFileList()
+            } else {
+              ms.error(`${t('common.failed')}: ${msg}`)
+            }
+          }
+        })
+      } else {
+        // 操作成功
+        ms.success(t('common.success'))
+        renameModalState.value.show = false
+        getFileList()
+      }
     } else {
       ms.error(`${t('common.failed')}: ${msg}`)
     }

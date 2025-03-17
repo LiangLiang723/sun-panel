@@ -27,3 +27,13 @@ export function rename<T>(id: number, newFileName: string, force: boolean = fals
     data: { id, fileName: newFileName, force }
   })
 }
+
+/**
+ * 刷新文件列表
+ * @returns 
+ */
+export function refreshFiles<T>() {
+  return post<T>({
+    url: '/file/refresh'
+  })
+}

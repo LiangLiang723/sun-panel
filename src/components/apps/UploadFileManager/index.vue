@@ -18,6 +18,7 @@ interface RenameModalState {
   show: boolean
   fileInfo: File.Info | null
   newFileName: string
+  newFileExt: string  // 新增扩展名字段
 }
 
 // 定义文件重命名响应数据接口
@@ -50,6 +51,7 @@ const renameModalState = ref<RenameModalState>({
   show: false,
   fileInfo: null,
   newFileName: '',
+  newFileExt: '',
 })
 
 const groupedImageList = computed(() => {
@@ -133,9 +135,21 @@ function handleSetWallpaper(imgSrc: string) {
 }
 
 function handleRenameClick(fileInfo: File.Info) {
-  renameModalState.value.fileInfo = fileInfo
-  renameModalState.value.newFileName = fileInfo.fileName
-  renameModalState.value.show = true
+  // 分离文件名和扩展名
+  const fileName = fileInfo.fileName;
+  const lastDotIndex = fileName.lastIndexOf('.');
+  
+  if (lastDotIndex > 0) {
+    renameModalState.value.fileInfo = fileInfo;
+    renameModalState.value.newFileName = fileName.substring(0, lastDotIndex);
+    renameModalState.value.newFileExt = fileName.substring(lastDotIndex + 1);
+  } else {
+    renameModalState.value.fileInfo = fileInfo;
+    renameModalState.value.newFileName = fileName;
+    renameModalState.value.newFileExt = '';
+  }
+  
+  renameModalState.value.show = true;
 }
 
 async function submitRename() {
@@ -144,10 +158,22 @@ async function submitRename() {
     return
   }
   
+  // 检查扩展名是否有效
+  const fileExt = renameModalState.value.newFileExt.trim();
+  if (fileExt && (!fileExt.match(/^[a-zA-Z0-9]+$/) || fileExt.length > 10)) {
+    ms.error(t('apps.uploadsFileManager.invalidExtension'))
+    return
+  }
+  
+  // 合并文件名和扩展名
+  const fullFileName = fileExt ? 
+    `${renameModalState.value.newFileName}.${fileExt}` : 
+    renameModalState.value.newFileName;
+  
   try {
     const response = await rename<RenameResponse>(
       renameModalState.value.fileInfo.id as number, 
-      renameModalState.value.newFileName
+      fullFileName
     )
     
     const { code, msg, data } = response
@@ -165,7 +191,7 @@ async function submitRename() {
             // 用户选择覆盖，发送强制覆盖请求
             const { code, msg } = await rename<RenameResponse>(
               renameModalState.value.fileInfo!.id as number, 
-              renameModalState.value.newFileName,
+              fullFileName,
               true // 强制覆盖
             )
             
@@ -363,7 +389,19 @@ onMounted(() => {
     <!-- 重命名模态框 -->
     <RoundCardModal v-model:show="renameModalState.show" style="max-width: 350px;" size="small" :title="$t('common.rename')">
       <div>
-        <NInput v-model:value="renameModalState.newFileName" :placeholder="$t('apps.uploadsFileManager.enterNewFilename')" />
+        <div class="mb-4">
+          <label class="block mb-1 text-sm">{{ $t('apps.uploadsFileManager.fileNameLabel') }}</label>
+          <NInput v-model:value="renameModalState.newFileName" :placeholder="$t('apps.uploadsFileManager.enterNewFilename')" />
+        </div>
+        
+        <div class="mb-4">
+          <label class="block mb-1 text-sm">{{ $t('apps.uploadsFileManager.extensionLabel') }}</label>
+          <div class="flex items-center">
+            <span class="mr-1">.</span>
+            <NInput v-model:value="renameModalState.newFileExt" :placeholder="$t('apps.uploadsFileManager.enterExtension')" />
+          </div>
+        </div>
+        
         <div class="flex justify-end gap-2 mt-4">
           <NButton @click="renameModalState.show = false">{{ $t('common.cancel') }}</NButton>
           <NButton type="primary" @click="submitRename">{{ $t('common.confirm') }}</NButton>

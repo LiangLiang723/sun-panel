@@ -35,6 +35,19 @@ interface RenameResponse {
   data?: RenameResponseData;
 }
 
+// 定义删除文件响应数据接口
+interface DeleteResponseData {
+  warnings?: string[];
+  message?: string;
+}
+
+// 定义删除文件响应接口
+interface DeleteResponse {
+  code: number;
+  msg?: string;
+  data?: DeleteResponseData;
+}
+
 const imageList = ref<File.Info[]>([])
 const searchQuery = ref('')
 const ms = useMessage()
@@ -108,19 +121,32 @@ function handleDelete(id: number) {
   })
 }
 
+// 更新删除文件的处理函数
 async function deletesImges(id: number) {
   try {
-    const { code, msg } = await deletes([id])
+    loading.value = true
+    const response = await deletes<DeleteResponse>([id])
+    const { code, msg, data } = response
+    
     if (code === 0) {
-      getFileList()
-      ms.success(t('common.success'))
+      // 刷新文件列表
+      await getFileList()
+      
+      // 使用更精确的类型检查
+      const responseData = data as DeleteResponseData | undefined;
+      if (responseData?.warnings && responseData.warnings.length > 0) {
+        // 显示警告，但文件已从列表中移除
+        ms.warning(t('apps.uploadsFileManager.deletePartialSuccess'))
+      } else {
+        ms.success(t('common.success'))
+      }
+    } else {
+      ms.error(`${t('common.failed')}: ${msg}`)
     }
-    else {
-      ms.error(`${t('common.failed')}:${msg}`)
-    }
-  }
-  catch (error) {
+  } catch (error) {
     ms.error(t('common.failed'))
+  } finally {
+    loading.value = false
   }
 }
 

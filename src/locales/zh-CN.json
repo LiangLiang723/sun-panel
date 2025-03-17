@@ -130,7 +130,8 @@
       "refreshSuccess": "文件刷新成功",
       "renamedFiles": "已重命名文件",
       "setWallpaper": "设置为壁纸",
-      "uploadTime": "上传时间"
+      "uploadTime": "上传时间",
+      "deletePartialSuccess": "文件已从列表中移除，但无法从磁盘上物理删除"
     },
     "userInfo": {
       "appName": "我的信息",

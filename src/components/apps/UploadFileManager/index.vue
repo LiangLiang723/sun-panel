@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NRadioButton, NRadioGroup, NSpin, useDialog, useMessage } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
-import { deletes, getList, rename } from '@/api/system/file'
+import { deletes, getList, refreshFiles, rename } from '@/api/system/file'
 import { set as savePanelConfig } from '@/api/panel/userConfig'
 import { RoundCardModal, SvgIcon } from '@/components/common'
 import { copyToClipboard, timeFormat } from '@/utils/cmn'
@@ -192,6 +192,24 @@ async function submitRename() {
   }
 }
 
+// 刷新文件列表
+async function handleRefreshFiles() {
+  loading.value = true
+  try {
+    const { code, msg } = await refreshFiles()
+    if (code === 0) {
+      await getFileList() // 重新获取列表
+      ms.success(t('apps.uploadsFileManager.refreshSuccess'))
+    } else {
+      ms.error(`${t('common.failed')}: ${msg}`)
+    }
+  } catch (error) {
+    ms.error(t('common.failed'))
+  } finally {
+    loading.value = false
+  }
+}
+
 function clearSearch() {
   searchQuery.value = ''
 }
@@ -212,11 +230,24 @@ onMounted(() => {
     
     <div class="flex flex-wrap justify-between items-center mt-2 mb-3 gap-3">
       <!-- 分组选择器 -->
-      <NRadioGroup v-model:value="activeGroup" @update:value="handleGroupChange" size="small">
-        <NRadioButton value="all">{{ $t('apps.uploadsFileManager.allFiles') }}</NRadioButton>
-        <NRadioButton value="original">{{ $t('apps.uploadsFileManager.originalFiles') }}</NRadioButton>
-        <NRadioButton value="renamed">{{ $t('apps.uploadsFileManager.renamedFiles') }}</NRadioButton>
-      </NRadioGroup>
+      <div class="flex gap-2 items-center">
+        <NRadioGroup v-model:value="activeGroup" @update:value="handleGroupChange" size="small">
+          <NRadioButton value="all">{{ $t('apps.uploadsFileManager.allFiles') }}</NRadioButton>
+          <NRadioButton value="original">{{ $t('apps.uploadsFileManager.originalFiles') }}</NRadioButton>
+          <NRadioButton value="renamed">{{ $t('apps.uploadsFileManager.renamedFiles') }}</NRadioButton>
+        </NRadioGroup>
+        
+        <!-- 刷新按钮 -->
+        <NButton size="small" 
+                 tertiary 
+                 :title="$t('apps.uploadsFileManager.refreshFiles')" 
+                 @click="handleRefreshFiles"
+                 :loading="loading">
+          <template #icon>
+            <SvgIcon icon="mdi-refresh" />
+          </template>
+        </NButton>
+      </div>
       
       <!-- 搜索功能 -->
       <div class="flex flex-1 max-w-xs">

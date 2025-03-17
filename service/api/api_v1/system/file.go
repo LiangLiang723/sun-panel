@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sun-panel/api/api_v1/common/apiData/commonApiStructs"
 	"sun-panel/api/api_v1/common/apiReturn"
@@ -210,10 +211,33 @@ func (a *FileApi) Rename(c *gin.Context) {
 	// 文件系统操作 - 重命名并移动文件
 	configUpload := global.Config.GetValueString("base", "source_path")
 
-	// 创建统一管理的文件夹
+	// 清理源文件路径，确保格式正确
+	srcPath := fileInfo.Src
+	// 移除可能存在的路径前缀问题（如 /./）
+	srcPath = strings.Replace(srcPath, "/./", "/", -1)
+
+	// 检查源文件是否存在
+	srcExists, _ := cmn.PathExists(srcPath)
+	if !srcExists {
+		// 尝试不同的路径格式（移除开头的斜杠）
+		altSrcPath := strings.TrimPrefix(srcPath, "/")
+		srcExists, _ = cmn.PathExists(altSrcPath)
+		if srcExists {
+			srcPath = altSrcPath // 使用替代路径
+		} else {
+			apiReturn.Error(c, fmt.Sprintf("Source file not found: %s", srcPath))
+			return
+		}
+	}
+
+	// 创建统一管理的文件夹（确保路径规范）
+	configUpload = strings.TrimSuffix(configUpload, "/") // 移除末尾斜杠
 	managedDir := fmt.Sprintf("%s/managed_user%d/", configUpload, userInfo.ID)
+
+	// 确保目录存在
 	isExist, _ := cmn.PathExists(managedDir)
 	if !isExist {
+		// 尝试创建完整路径
 		if err := os.MkdirAll(managedDir, os.ModePerm); err != nil {
 			apiReturn.Error(c, fmt.Sprintf("Failed to create directory: %s", err.Error()))
 			return
@@ -229,7 +253,7 @@ func (a *FileApi) Rename(c *gin.Context) {
 		newFileName = fmt.Sprintf("%s%s", newFileName, fileExt) // 如果新文件名没有扩展名，添加原扩展名
 	}
 
-	// 在managed目录中的新路径
+	// 在managed目录中的新路径（确保没有双斜杠）
 	newFilePath := fmt.Sprintf("%s%s", managedDir, newFileName)
 
 	// 检查目标文件是否已存在
@@ -245,20 +269,160 @@ func (a *FileApi) Rename(c *gin.Context) {
 	}
 
 	// 移动并重命名文件
-	if err := os.Rename(fileInfo.Src, newFilePath); err != nil {
-		apiReturn.Error(c, fmt.Sprintf("Failed to rename file: %s", err.Error()))
+	if err := os.Rename(srcPath, newFilePath); err != nil {
+		// 如果重命名失败，记录详细错误信息
+		apiReturn.Error(c, fmt.Sprintf("Failed to rename file from '%s' to '%s': %s",
+			srcPath, newFilePath, err.Error()))
 		return
 	}
 
 	// 更新数据库记录
 	updates := map[string]interface{}{
 		"file_name": req.FileName,
-		"src":       newFilePath,
+		"src":       fmt.Sprintf("/%s", strings.TrimPrefix(newFilePath, "/")), // 确保存储的路径格式一致
 	}
 
 	if err := global.Db.Model(&fileInfo).Updates(updates).Error; err != nil {
 		// 如果数据库更新失败，尝试将文件移回原位置
-		os.Rename(newFilePath, fileInfo.Src)
+		os.Rename(newFilePath, srcPath)
+		apiReturn.ErrorDatabase(c, err.Error())
+		return
+	}
+
+	apiReturn.Success(c)
+}
+
+func (a *FileApi) RefreshFiles(c *gin.Context) {
+	// 获取当前用户信息
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	configUpload := global.Config.GetValueString("base", "source_path")
+
+	// 简化路径处理，防止路径问题
+	configUpload = strings.TrimSuffix(configUpload, "/")
+
+	// 事务处理
+	err := global.Db.Transaction(func(tx *gorm.DB) error {
+		// 1. 先清空当前用户的文件记录
+		if err := tx.Where("user_id = ?", userInfo.ID).Delete(&models.File{}).Error; err != nil {
+			return err
+		}
+
+		// 2. 扫描managed目录
+		managedDir := fmt.Sprintf("%s/managed_user%d", configUpload, userInfo.ID)
+		managedDirExists, _ := cmn.PathExists(managedDir)
+
+		if managedDirExists {
+			files, err := os.ReadDir(managedDir)
+			if err == nil {
+				for _, file := range files {
+					if file.IsDir() || file.Name() == ".gitkeep" {
+						continue
+					}
+
+					fileExt := path.Ext(file.Name())
+					filePath := fmt.Sprintf("/%s/managed_user%d/%s", configUpload, userInfo.ID, file.Name())
+
+					// 创建文件记录
+					fileRecord := models.File{
+						UserId:   userInfo.ID,
+						FileName: file.Name(),
+						Src:      filePath,
+						Ext:      fileExt,
+					}
+
+					if err := tx.Create(&fileRecord).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// 3. 扫描所有年份的年/月/日目录结构
+		rootDir := fmt.Sprintf("%s", configUpload)
+		rootDirExists, _ := cmn.PathExists(rootDir)
+
+		if rootDirExists {
+			// 读取根目录下的所有文件夹（可能的年份目录）
+			years, err := os.ReadDir(rootDir)
+			if err != nil {
+				return err
+			}
+
+			for _, yearDir := range years {
+				// 只处理目录，且跳过managed_user目录和非年份目录
+				if !yearDir.IsDir() || strings.HasPrefix(yearDir.Name(), "managed_user") {
+					continue
+				}
+
+				// 尝试将目录名称解析为年份（4位数字）
+				yearInt, err := strconv.Atoi(yearDir.Name())
+				if err != nil || yearInt < 1000 || yearInt > 9999 {
+					continue // 跳过非年份目录
+				}
+
+				yearPath := fmt.Sprintf("%s/%s", configUpload, yearDir.Name())
+
+				// 按月遍历
+				months, err := os.ReadDir(yearPath)
+				if err != nil {
+					continue
+				}
+
+				for _, monthDir := range months {
+					if !monthDir.IsDir() {
+						continue
+					}
+
+					monthPath := fmt.Sprintf("%s/%s/%s", configUpload, yearDir.Name(), monthDir.Name())
+
+					// 按日遍历
+					days, err := os.ReadDir(monthPath)
+					if err != nil {
+						continue
+					}
+
+					for _, dayDir := range days {
+						if !dayDir.IsDir() {
+							continue
+						}
+
+						dayPath := fmt.Sprintf("%s/%s/%s/%s", configUpload, yearDir.Name(), monthDir.Name(), dayDir.Name())
+
+						// 读取日期目录中的文件
+						files, err := os.ReadDir(dayPath)
+						if err != nil {
+							continue
+						}
+
+						for _, file := range files {
+							if file.IsDir() || file.Name() == ".gitkeep" {
+								continue
+							}
+
+							fileExt := path.Ext(file.Name())
+							filePath := fmt.Sprintf("/%s/%s/%s/%s/%s", configUpload, yearDir.Name(), monthDir.Name(), dayDir.Name(), file.Name())
+
+							// 创建文件记录
+							fileRecord := models.File{
+								UserId:   userInfo.ID,
+								FileName: file.Name(),
+								Src:      filePath,
+								Ext:      fileExt,
+							}
+
+							if err := tx.Create(&fileRecord).Error; err != nil {
+								return err
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		apiReturn.ErrorDatabase(c, err.Error())
 		return
 	}

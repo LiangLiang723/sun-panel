@@ -67,6 +67,15 @@ const renameModalState = ref<RenameModalState>({
   newFileExt: '',
 })
 
+// 获取不带后缀名的文件名
+function getFileNameWithoutExtension(fileName: string): string {
+  const lastDotIndex = fileName.lastIndexOf('.');
+  if (lastDotIndex > 0) {
+    return fileName.substring(0, lastDotIndex);
+  }
+  return fileName; // 如果没有后缀名，返回原始文件名
+}
+
 const groupedImageList = computed(() => {
   if (!searchQuery.value) {
     if (activeGroup.value === 'all') {
@@ -78,10 +87,16 @@ const groupedImageList = computed(() => {
     }
   }
   
-  // 如果有搜索词，先按搜索词过滤，再按分组过滤
-  let filteredList = imageList.value.filter(item => 
-    item.fileName.toLowerCase().includes(searchQuery.value.toLowerCase())
-  )
+  // 如果有搜索词，先按搜索词过滤（不考虑后缀名），再按分组过滤
+  const searchQueryLower = searchQuery.value.toLowerCase();
+  let filteredList = imageList.value.filter(item => {
+    // 获取不带后缀的文件名并转为小写
+    const fileNameWithoutExt = getFileNameWithoutExtension(item.fileName).toLowerCase();
+
+    // 同时检查完整文件名和不带后缀的文件名
+    return fileNameWithoutExt.includes(searchQueryLower) ||
+      item.fileName.toLowerCase().includes(searchQueryLower);
+  });
   
   if (activeGroup.value === 'all') {
     return filteredList

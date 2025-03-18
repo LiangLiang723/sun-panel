@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NRadioButton, NRadioGroup, NSpin, useDialog, useMessage } from 'naive-ui'
+import { NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NImageGroup, NInput, NRadioButton, NRadioGroup, NSpin, NUpload, useDialog, useMessage } from 'naive-ui'
+import type { UploadFileInfo } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { deletes, getList, refreshFiles, rename } from '@/api/system/file'
 import { set as savePanelConfig } from '@/api/panel/userConfig'
 import { RoundCardModal, SvgIcon } from '@/components/common'
 import { copyToClipboard, timeFormat } from '@/utils/cmn'
 import { t } from '@/locales'
-import { usePanelState } from '@/store'
+import { usePanelState, useAuthStore } from '@/store'
+import { apiRespErrMsg } from '@/utils/request/apiMessage'
 
 interface InfoModalState {
   title: string
@@ -286,6 +288,36 @@ function handleGroupChange(value: string) {
   activeGroup.value = value
 }
 
+// 添加authStore引用
+const authStore = useAuthStore()
+
+// 添加文件上传完成处理函数 
+const handleUploadFinish = ({
+  file,
+  event,
+}: {
+  file: UploadFileInfo
+  event?: ProgressEvent
+}) => {
+  if (!event?.target) return file
+  
+  try {
+    const res = JSON.parse((event.target as XMLHttpRequest).response)
+    if (res.code === 0) {
+      ms.success(t('common.success'))
+      // 上传成功后刷新文件列表
+      getFileList()
+    }
+    else {
+      apiRespErrMsg(res)
+    }
+  } catch (error) {
+    ms.error(t('common.uploadFail'))
+  }
+
+  return file
+}
+
 onMounted(() => {
   getFileList()
 })
@@ -314,6 +346,21 @@ onMounted(() => {
             <SvgIcon icon="mdi-refresh" />
           </template>
         </NButton>
+        
+        <!-- 添加上传按钮 -->
+        <NUpload
+          action="/api/file/uploadImg"
+          :show-file-list="false"
+          name="imgfile"
+          :headers="{
+            token: authStore.token as string,
+          }"
+          @finish="handleUploadFinish"
+        >
+          <NButton size="small" type="primary" :loading="loading">
+            {{ $t('iconItem.selectUpload') }}
+          </NButton>
+        </NUpload>
       </div>
       
       <!-- 搜索功能 -->

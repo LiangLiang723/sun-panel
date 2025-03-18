@@ -253,6 +253,7 @@
     "onlineIconLibrary": "Online icon library",
     "openMethod": "Open method",
     "selectUpload": "Local upload",
+    "selectFromUploaded": "Select from uploaded files",
     "url": "URL"
   },
   "login": {

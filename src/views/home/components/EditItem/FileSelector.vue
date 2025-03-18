@@ -3,13 +3,24 @@ import { NButton, NButtonGroup, NCard, NEllipsis, NGrid, NGridItem, NImage, NIma
 import type { UploadFileInfo } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { deletes, getList, refreshFiles, rename } from '@/api/system/file'
-import { set as savePanelConfig } from '@/api/panel/userConfig'
 import { RoundCardModal, SvgIcon } from '@/components/common'
 import { copyToClipboard, timeFormat } from '@/utils/cmn'
 import { t } from '@/locales'
-import { usePanelState, useAuthStore } from '@/store'
+import { useAuthStore } from '@/store'
 import { apiRespErrMsg } from '@/utils/request/apiMessage'
 
+// 定义组件属性
+const props = defineProps<{
+  visible: boolean
+}>()
+
+// 定义事件
+const emit = defineEmits<{
+  (e: 'update:visible', visible: boolean): void
+  (e: 'select', url: string): void
+}>()
+
+// 复用UploadFileManager的状态和接口定义
 interface InfoModalState {
   title: string
   show: boolean
@@ -20,43 +31,39 @@ interface RenameModalState {
   show: boolean
   fileInfo: File.Info | null
   newFileName: string
-  newFileExt: string  // 新增扩展名字段
+  newFileExt: string
 }
 
-// 定义文件重命名响应数据接口
 interface RenameResponseData {
   conflict: boolean;
   message?: string;
   targetPath?: string;
 }
 
-// 定义文件重命名响应接口
 interface RenameResponse {
   code: number;
   msg?: string;
   data?: RenameResponseData;
 }
 
-// 定义删除文件响应数据接口
 interface DeleteResponseData {
   warnings?: string[];
   message?: string;
 }
 
-// 定义删除文件响应接口
 interface DeleteResponse {
   code: number;
   msg?: string;
   data?: DeleteResponseData;
 }
 
+// 状态变量
 const imageList = ref<File.Info[]>([])
 const searchQuery = ref('')
 const ms = useMessage()
 const dialog = useDialog()
-const panelStore = usePanelState()
 const loading = ref(false)
-const activeGroup = ref('all') // 当前激活的分组
+const activeGroup = ref('all')
 const infoModalState = ref<InfoModalState>({
   show: false,
   title: '',
@@ -69,6 +76,9 @@ const renameModalState = ref<RenameModalState>({
   newFileExt: '',
 })
 
+// 添加authStore引用
+const authStore = useAuthStore()
+
 // 获取不带后缀名的文件名
 function getFileNameWithoutExtension(fileName: string): string {
   const lastDotIndex = fileName.lastIndexOf('.');
@@ -78,6 +88,7 @@ function getFileNameWithoutExtension(fileName: string): string {
   return fileName; // 如果没有后缀名，返回原始文件名
 }
 
+// 过滤和分组后的图片列表
 const groupedImageList = computed(() => {
   if (!searchQuery.value) {
     if (activeGroup.value === 'all') {
@@ -94,10 +105,10 @@ const groupedImageList = computed(() => {
   let filteredList = imageList.value.filter(item => {
     // 获取不带后缀的文件名并转为小写
     const fileNameWithoutExt = getFileNameWithoutExtension(item.fileName).toLowerCase();
-
+    
     // 同时检查完整文件名和不带后缀的文件名
-    return fileNameWithoutExt.includes(searchQueryLower) ||
-      item.fileName.toLowerCase().includes(searchQueryLower);
+    return fileNameWithoutExt.includes(searchQueryLower) || 
+           item.fileName.toLowerCase().includes(searchQueryLower);
   });
   
   if (activeGroup.value === 'all') {
@@ -111,11 +122,26 @@ const groupedImageList = computed(() => {
   return filteredList
 })
 
+// 模态框可见性控制
+const show = computed({
+  get: () => props.visible,
+  set: (visible: boolean) => {
+    emit('update:visible', visible)
+  },
+})
+
+// 文件操作功能
 async function getFileList() {
   loading.value = true
-  const { data } = await getList<Common.ListResponse<File.Info[]>>()
-  imageList.value = data.list
-  loading.value = false
+  try {
+    const { data } = await getList<Common.ListResponse<File.Info[]>>()
+    imageList.value = data.list
+  } catch (error) {
+    console.error('获取文件列表失败:', error)
+    ms.error('获取文件列表失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 async function copyImageUrl(text: string) {
@@ -138,7 +164,6 @@ function handleDelete(id: number) {
   })
 }
 
-// 更新删除文件的处理函数
 async function deletesImges(id: number) {
   try {
     loading.value = true
@@ -170,11 +195,6 @@ async function deletesImges(id: number) {
 function handleInfoClick(fileInfo: File.Info) {
   infoModalState.value.fileInfo = fileInfo
   infoModalState.value.show = true
-}
-
-function handleSetWallpaper(imgSrc: string) {
-  panelStore.panelConfig.backgroundImageSrc = imgSrc
-  savePanelConfig({ panel: panelStore.panelConfig })
 }
 
 function handleRenameClick(fileInfo: File.Info) {
@@ -288,10 +308,13 @@ function handleGroupChange(value: string) {
   activeGroup.value = value
 }
 
-// 添加authStore引用
-const authStore = useAuthStore()
+// 选择文件 - 这是FileSelector特有的功能
+function selectFile(item: File.Info) {
+  emit('select', item.src)
+  show.value = false
+}
 
-// 添加文件上传完成处理函数 
+// 添加文件上传完成处理函数
 const handleUploadFinish = ({
   file,
   event,
@@ -318,128 +341,128 @@ const handleUploadFinish = ({
   return file
 }
 
+// 组件挂载时获取文件列表
 onMounted(() => {
   getFileList()
 })
 </script>
 
 <template>
-  <div class="bg-slate-200 dark:bg-zinc-900 p-2 h-full">
-    <NSpin v-show="loading" size="small" />
-    
-    <div class="flex flex-wrap justify-between items-center mt-2 mb-3 gap-3">
-      <!-- 分组选择器 -->
-      <div class="flex gap-2 items-center">
-        <NRadioGroup v-model:value="activeGroup" @update:value="handleGroupChange" size="small">
-          <NRadioButton value="all">{{ $t('apps.uploadsFileManager.allFiles') }}</NRadioButton>
-          <NRadioButton value="original">{{ $t('apps.uploadsFileManager.originalFiles') }}</NRadioButton>
-          <NRadioButton value="renamed">{{ $t('apps.uploadsFileManager.renamedFiles') }}</NRadioButton>
-        </NRadioGroup>
-        
-        <!-- 刷新按钮 -->
-        <NButton size="small" 
-                 tertiary 
-                 :title="$t('apps.uploadsFileManager.refreshFiles')" 
-                 @click="handleRefreshFiles"
-                 :loading="loading">
-          <template #icon>
-            <SvgIcon icon="mdi-refresh" />
-          </template>
-        </NButton>
-        
-        <!-- 添加上传按钮 -->
-        <NUpload
-          action="/api/file/uploadImg"
-          :show-file-list="false"
-          name="imgfile"
-          :headers="{
-            token: authStore.token as string,
-          }"
-          @finish="handleUploadFinish"
-        >
-          <NButton size="small" type="primary" :loading="loading">
-            {{ $t('iconItem.selectUpload') }}
-          </NButton>
-        </NUpload>
-      </div>
+  <RoundCardModal v-model:show="show" style="max-width: 900px;" size="small" :title="$t('iconItem.selectFromUploaded')">
+    <div class="bg-slate-200 dark:bg-zinc-900 p-2 h-full file-selector-container">
+      <NSpin v-show="loading" size="small" />
       
-      <!-- 搜索功能 -->
-      <div class="flex flex-1 max-w-xs">
-        <NInput v-model:value="searchQuery" 
-                :placeholder="$t('common.search')" 
-                clearable
-                @clear="clearSearch">
-          <template #prefix>
-            <SvgIcon icon="ion-search" />
-          </template>
-        </NInput>
+      <div class="flex flex-wrap justify-between items-center mt-2 mb-3 gap-3">
+        <!-- 分组选择器 -->
+        <div class="flex gap-2 items-center">
+          <NRadioGroup v-model:value="activeGroup" @update:value="handleGroupChange" size="small">
+            <NRadioButton value="all">{{ $t('apps.uploadsFileManager.allFiles') }}</NRadioButton>
+            <NRadioButton value="original">{{ $t('apps.uploadsFileManager.originalFiles') }}</NRadioButton>
+            <NRadioButton value="renamed">{{ $t('apps.uploadsFileManager.renamedFiles') }}</NRadioButton>
+          </NRadioGroup>
+          
+          <!-- 刷新按钮 -->
+          <NButton size="small" 
+                  tertiary 
+                  :title="$t('apps.uploadsFileManager.refreshFiles')" 
+                  @click="handleRefreshFiles"
+                  :loading="loading">
+            <template #icon>
+              <SvgIcon icon="mdi-refresh" />
+            </template>
+          </NButton>
+          
+          <!-- 添加上传按钮 -->
+          <NUpload
+            action="/api/file/uploadImg"
+            :show-file-list="false"
+            name="imgfile"
+            :headers="{
+              token: authStore.token as string,
+            }"
+            @finish="handleUploadFinish"
+          >
+            <NButton size="small" type="primary" :loading="loading">
+              {{ $t('iconItem.selectUpload') }}
+            </NButton>
+          </NUpload>
+        </div>
+        
+        <!-- 搜索功能 -->
+        <div class="flex flex-1 max-w-xs">
+          <NInput v-model:value="searchQuery" 
+                  :placeholder="$t('common.search')" 
+                  clearable
+                  @clear="clearSearch">
+            <template #prefix>
+              <SvgIcon icon="ion-search" />
+            </template>
+          </NInput>
+        </div>
       </div>
-    </div>
 
-    <div class="flex justify-center mt-2">
-      <div v-if="groupedImageList.length === 0 && !loading" class="flex">
-        <template v-if="searchQuery">
-          {{ $t('common.noSearchResults') }}
-        </template>
-        <template v-else-if="activeGroup === 'renamed'">
-          {{ $t('apps.uploadsFileManager.noRenamedFiles') }}
-        </template>
-        <template v-else-if="activeGroup === 'original'">
-          {{ $t('apps.uploadsFileManager.noOriginalFiles') }}
-        </template>
-        <template v-else>
-          {{ $t('apps.uploadsFileManager.nothingText') }}
-        </template>
+      <div class="file-list-container">
+        <div class="flex justify-center mt-2">
+          <div v-if="groupedImageList.length === 0 && !loading" class="flex">
+            <template v-if="searchQuery">
+              {{ $t('common.noSearchResults') }}
+            </template>
+            <template v-else-if="activeGroup === 'renamed'">
+              {{ $t('apps.uploadsFileManager.noRenamedFiles') }}
+            </template>
+            <template v-else-if="activeGroup === 'original'">
+              {{ $t('apps.uploadsFileManager.noOriginalFiles') }}
+            </template>
+            <template v-else>
+              {{ $t('apps.uploadsFileManager.nothingText') }}
+            </template>
+          </div>
+          <NImageGroup v-else>
+            <NGrid cols="2 300:2 600:4 900:6 1100:9" :x-gap="5" :y-gap="5">
+              <NGridItem v-for="(item, index) in groupedImageList" :key="index">
+                <NCard size="small" style="border-radius: 5px;" :bordered="true" hover-style="cursor: pointer;" @click="selectFile(item)">
+                  <template #cover>
+                    <div class="card transparent-grid">
+                      <NImage :lazy="true" style="object-fit: contain;height: 100%;" :src="item.src" />
+                    </div>
+                  </template>
+                  <template #footer>
+                    <span class="text-xs">
+                      <NEllipsis>
+                        {{ item.fileName }}
+                      </NEllipsis>
+                    </span>
+                    <div class="flex justify-center mt-[10px]">
+                      <NButtonGroup>
+                        <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('apps.uploadsFileManager.copyLink')" @click.stop="copyImageUrl(item.src)">
+                          <template #icon>
+                            <SvgIcon icon="ion-copy" />
+                          </template>
+                        </NButton>
+                        <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('common.rename')" @click.stop="handleRenameClick(item)">
+                          <template #icon>
+                            <SvgIcon icon="mdi-pencil-outline" />
+                          </template>
+                        </NButton>
+                        <NButton size="tiny" tertiary style="cursor: pointer;" :title="timeFormat(item.createTime)" @click.stop="handleInfoClick(item)">
+                          <template #icon>
+                            <SvgIcon icon="mdi-information-box-outline" />
+                          </template>
+                        </NButton>
+                        <NButton size="tiny" tertiary type="error" style="cursor: pointer;" :title="$t('common.delete')" @click.stop="handleDelete(item.id as number)">
+                          <template #icon>
+                            <SvgIcon icon="material-symbols-delete" />
+                          </template>
+                        </NButton>
+                      </NButtonGroup>
+                    </div>
+                  </template>
+                </NCard>
+              </NGridItem>
+            </NGrid>
+          </NImageGroup>
+        </div>
       </div>
-      <NImageGroup v-else>
-        <NGrid cols="2 300:2 600:4 900:6 1100:9" :x-gap="5" :y-gap="5">
-          <NGridItem v-for="(item, index) in groupedImageList" :key="index">
-            <NCard size="small" style="border-radius: 5px;" :bordered="true">
-              <template #cover>
-                <div class="card transparent-grid">
-                  <NImage :lazy="true" style="object-fit: contain;height: 100%;" :src="item.src" />
-                </div>
-              </template>
-              <template #footer>
-                <span class="text-xs">
-                  <NEllipsis>
-                    {{ item.fileName }}
-                  </NEllipsis>
-                </span>
-                <div class="flex justify-center mt-[10px]">
-                  <NButtonGroup>
-                    <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('apps.uploadsFileManager.copyLink')" @click="copyImageUrl(item.src)">
-                      <template #icon>
-                        <SvgIcon icon="ion-copy" />
-                      </template>
-                    </NButton>
-                    <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('common.rename')" @click="handleRenameClick(item)">
-                      <template #icon>
-                        <SvgIcon icon="mdi-pencil-outline" />
-                      </template>
-                    </NButton>
-                    <NButton size="tiny" tertiary style="cursor: pointer;" :title="timeFormat(item.createTime)" @click="handleInfoClick(item)">
-                      <template #icon>
-                        <SvgIcon icon="mdi-information-box-outline" />
-                      </template>
-                    </NButton>
-                    <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('apps.uploadsFileManager.setWallpaper')" @click="handleSetWallpaper(item.src)">
-                      <template #icon>
-                        <SvgIcon icon="lucide:wallpaper" />
-                      </template>
-                    </NButton>
-                    <NButton size="tiny" tertiary type="error" style="cursor: pointer;" :title="$t('common.delete')" @click="handleDelete(item.id as number)">
-                      <template #icon>
-                        <SvgIcon icon="material-symbols-delete" />
-                      </template>
-                    </NButton>
-                  </NButtonGroup>
-                </div>
-              </template>
-            </NCard>
-          </NGridItem>
-        </NGrid>
-      </NImageGroup>
     </div>
 
     <!-- 文件信息模态框 -->
@@ -496,7 +519,7 @@ onMounted(() => {
         </div>
       </div>
     </RoundCardModal>
-  </div>
+  </RoundCardModal>
 </template>
 
 <style scoped>
@@ -512,5 +535,18 @@ onMounted(() => {
     linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%);
   background-size: 16px 16px;
   background-position: 0 0, 8px 8px;
+}
+
+/* 固定高度容器样式 */
+.file-selector-container {
+  display: flex;
+  flex-direction: column;
+  height: 500px; /* 固定总高度 */
+}
+
+.file-list-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 400px; /* 确保有足够空间显示内容 */
 }
 </style>

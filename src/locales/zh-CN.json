@@ -253,6 +253,7 @@
     "onlineIconLibrary": "在线图标库",
     "openMethod": "打开方式",
     "selectUpload": "本地上传",
+    "selectFromUploaded": "从已上传文件选择",
     "url": "地址"
   },
   "login": {

@@ -112,7 +112,6 @@
       "copySuccess": "Link copied successfully. You can paste it in the address bar.",
       "deleteWarningText": "Cannot be recovered after deletion. Are you sure you want to continue?",
       "enterExtension": "Enter file extension",
-      "enterNewFilename": "Enter file name without extension",
       "extensionLabel": "Extension",
       "fileNameLabel": "File name",
       "invalidExtension": "Invalid file extension",
@@ -130,6 +129,8 @@
       "refreshSuccess": "Files refreshed successfully",
       "renamedFiles": "Renamed Files",
       "setWallpaper": "Set as wallpaper",
+      "setWallpaperConfirm": "Are you sure you want to set this image as your wallpaper?",
+      "wallpaperSetSuccess": "Wallpaper has been set successfully",
       "uploadTime": "Upload time",
       "deletePartialSuccess": "The file was removed from the list, but could not be physically deleted from disk"
     },
@@ -220,7 +221,8 @@
     },
     "searchBox": {
       "inputPlaceholder": "Enter search content",
-      "openWithNewOpen": "Open in new window"
+      "openWithNewOpen": "Open in new window",
+      "searchSuggestionsShow": "Show search suggestions"
     },
     "systemMonitor": {
       "cpuState": "CPU status",

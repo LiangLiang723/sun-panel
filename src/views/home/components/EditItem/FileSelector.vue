@@ -382,7 +382,7 @@ onMounted(() => {
             }"
             @finish="handleUploadFinish"
           >
-            <NButton size="small" type="primary" :loading="loading">
+            <NButton size="small" type="primary">
               {{ $t('iconItem.selectUpload') }}
             </NButton>
           </NUpload>

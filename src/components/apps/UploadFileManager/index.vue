@@ -173,8 +173,17 @@ function handleInfoClick(fileInfo: File.Info) {
 }
 
 function handleSetWallpaper(imgSrc: string) {
-  panelStore.panelConfig.backgroundImageSrc = imgSrc
-  savePanelConfig({ panel: panelStore.panelConfig })
+  dialog.warning({
+    title: t('common.warning'),
+    content: t('apps.uploadsFileManager.setWallpaperConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => {
+      panelStore.panelConfig.backgroundImageSrc = imgSrc
+      savePanelConfig({ panel: panelStore.panelConfig })
+      ms.success(t('apps.uploadsFileManager.wallpaperSetSuccess'))
+    },
+  })
 }
 
 function handleRenameClick(fileInfo: File.Info) {
@@ -357,7 +366,7 @@ onMounted(() => {
           }"
           @finish="handleUploadFinish"
         >
-          <NButton size="small" type="primary" :loading="loading">
+          <NButton size="small" type="primary">
             {{ $t('iconItem.selectUpload') }}
           </NButton>
         </NUpload>

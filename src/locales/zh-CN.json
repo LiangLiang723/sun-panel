@@ -256,6 +256,7 @@
     "openMethod": "打开方式",
     "selectUpload": "本地上传",
     "selectFromUploaded": "从已上传文件选择",
+    "selectThisImage": "选择此图片",
     "url": "地址"
   },
   "login": {

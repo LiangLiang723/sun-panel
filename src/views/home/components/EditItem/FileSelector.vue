@@ -4,7 +4,7 @@ import type { UploadFileInfo } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { deletes, getList, refreshFiles, rename } from '@/api/system/file'
 import { RoundCardModal, SvgIcon } from '@/components/common'
-import { copyToClipboard, timeFormat } from '@/utils/cmn'
+import { timeFormat } from '@/utils/cmn'
 import { t } from '@/locales'
 import { useAuthStore } from '@/store'
 import { apiRespErrMsg } from '@/utils/request/apiMessage'
@@ -142,14 +142,6 @@ async function getFileList() {
   } finally {
     loading.value = false
   }
-}
-
-async function copyImageUrl(text: string) {
-  const res = await copyToClipboard(text)
-  if (res)
-    ms.success(t('apps.uploadsFileManager.copySuccess'))
-  else
-    ms.error(t('apps.uploadsFileManager.copyFailed'))
 }
 
 function handleDelete(id: number) {
@@ -314,6 +306,12 @@ function selectFile(item: File.Info) {
   show.value = false
 }
 
+// 预览图片而不是选择
+function previewImage(event: MouseEvent) {
+  // 仅阻止事件冒泡，让NImage组件的默认预览行为生效
+  event.stopPropagation()
+}
+
 // 添加文件上传完成处理函数
 const handleUploadFinish = ({
   file,
@@ -420,7 +418,7 @@ onMounted(() => {
           <NImageGroup v-else>
             <NGrid cols="2 300:2 600:4 900:6 1100:9" :x-gap="5" :y-gap="5">
               <NGridItem v-for="(item, index) in groupedImageList" :key="index">
-                <NCard size="small" style="border-radius: 5px;" :bordered="true" hover-style="cursor: pointer;" @click="selectFile(item)">
+                <NCard size="small" style="border-radius: 5px;" :bordered="true" hover-style="cursor: pointer;" @click="previewImage">
                   <template #cover>
                     <div class="card transparent-grid">
                       <NImage :lazy="true" style="object-fit: contain;height: 100%;" :src="item.src" />
@@ -434,9 +432,9 @@ onMounted(() => {
                     </span>
                     <div class="flex justify-center mt-[10px]">
                       <NButtonGroup>
-                        <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('apps.uploadsFileManager.copyLink')" @click.stop="copyImageUrl(item.src)">
+                        <NButton size="tiny" tertiary type="primary" style="cursor: pointer;" :title="$t('iconItem.selectThisImage')" @click.stop="selectFile(item)">
                           <template #icon>
-                            <SvgIcon icon="ion-copy" />
+                            <SvgIcon icon="material-symbols-check" />
                           </template>
                         </NButton>
                         <NButton size="tiny" tertiary style="cursor: pointer;" :title="$t('common.rename')" @click.stop="handleRenameClick(item)">

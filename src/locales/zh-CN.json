@@ -112,7 +112,6 @@
       "copySuccess": "链接复制成功，可以在图标地址栏",
       "deleteWarningText": "删除后无法恢复，你确定要继续吗？",
       "enterExtension": "输入文件后缀",
-      "enterNewFilename": "输入文件名(不含后缀)",
       "extensionLabel": "文件后缀",
       "fileNameLabel": "文件名",
       "invalidExtension": "无效的文件后缀",
@@ -130,6 +129,8 @@
       "refreshSuccess": "文件刷新成功",
       "renamedFiles": "已重命名文件",
       "setWallpaper": "设置为壁纸",
+      "setWallpaperConfirm": "你确定要将此图片设置为壁纸吗？",
+      "wallpaperSetSuccess": "壁纸设置成功",
       "uploadTime": "上传时间",
       "deletePartialSuccess": "文件已从列表中移除，但无法从磁盘上物理删除"
     },
@@ -220,7 +221,8 @@
     },
     "searchBox": {
       "inputPlaceholder": "请输入搜索内容",
-      "openWithNewOpen": "新窗口打开"
+      "openWithNewOpen": "新窗口打开",
+      "searchSuggestionsShow": "显示搜索建议"
     },
     "systemMonitor": {
       "cpuState": "CPU状态",

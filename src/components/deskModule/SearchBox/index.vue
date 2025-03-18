@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineEmits, onMounted, ref, watch } from 'vue'
+import { defineEmits, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NAvatar, NCheckbox } from 'naive-ui'
 import { SvgIcon } from '@/components/common'
 import { useModuleConfig } from '@/store/modules'
@@ -27,6 +27,7 @@ interface State {
   currentSearchEngine: DeskModule.SearchBox.SearchEngine
   searchEngineList: DeskModule.SearchBox.SearchEngine[]
   newWindowOpen: boolean
+  showSearchSuggestions: boolean
 }
 
 const moduleConfigName = 'deskModuleSearchBox'
@@ -72,6 +73,7 @@ const defaultState: State = {
   currentSearchEngine: defaultSearchEngineList.value[0],
   searchEngineList: [] || defaultSearchEngineList,
   newWindowOpen: false,
+  showSearchSuggestions: true,
 }
 
 const state = ref<State>({ ...defaultState })
@@ -166,10 +168,31 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
-function handleEngineClick() {
+// 引用搜索引擎图标元素和下拉框元素
+const engineIconRef = ref<HTMLElement | null>(null)
+const dropdownRef = ref<HTMLElement | null>(null)
+
+// 处理点击事件，改进判断逻辑，避免点击图标时关闭下拉框
+const handleClickOutside = (event: MouseEvent) => {
+  // 如果点击的是搜索引擎图标或其子元素，不处理（由handleEngineClick处理）
+  if (engineIconRef.value && engineIconRef.value.contains(event.target as Node)) {
+    return
+  }
+  
+  // 如果下拉框显示且点击在下拉框外部，则关闭下拉框
+  if (searchSelectListShow.value && dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
+    searchSelectListShow.value = false
+  }
+}
+
+function handleEngineClick(event: MouseEvent) {
+  // 阻止事件冒泡，确保不会触发handleClickOutside
+  event.stopPropagation()
+  
   // 访客模式不允许修改
   if (authStore.visitMode === VisitMode.VISIT_MODE_PUBLIC)
     return
+    
   searchSelectListShow.value = !searchSelectListShow.value
 }
 
@@ -226,7 +249,7 @@ function selectSuggestion(suggestion: string, isMouseClick: boolean = false) {
 
 // 获取搜索建议
 async function fetchSuggestions(query: string) {
-  if (!query) {
+  if (!query || !state.value.showSearchSuggestions) {
     searchSuggestions.value = []
     showSuggestions.value = false
     activeIndex.value = -1 // 重置选中索引
@@ -291,13 +314,21 @@ watch(searchTerm, (newValue, oldValue) => {
   }
 })
 
+// 挂载时添加全局点击事件监听
 onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+  
   moduleConfig.getValueByNameFromCloud<State>('deskModuleSearchBox').then(({ code, data }) => {
     if (code === 0)
       state.value = data || defaultState
     else
       state.value = defaultState
   })
+})
+
+// 卸载时移除全局点击事件监听
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -307,7 +338,9 @@ onMounted(() => {
        @keydown.esc="handleClearSearchTerm"
        @keydown="handleKeyDown">
     <div class="search-container flex rounded-2xl items-center justify-center text-white w-full" :style="{ background, color: textColor }" :class="{ focused: isFocused }">
-      <div class="search-box-btn-engine w-[40px] flex justify-center cursor-pointer" @click="handleEngineClick">
+      <div class="search-box-btn-engine w-[40px] flex justify-center cursor-pointer" 
+           @click="handleEngineClick"
+           ref="engineIconRef">
         <NAvatar :src="state.currentSearchEngine.iconSrc" style="background-color: transparent;" :size="20" />
       </div>
 
@@ -322,7 +355,7 @@ onMounted(() => {
     </div>
 
     <!-- 搜索建议 - 使用与搜索引擎选择相同的样式 -->
-    <div v-if="showSuggestions && isFocused && !searchSelectListShow" class="w-full mt-[10px] rounded-xl p-[10px]" :style="{ background }">
+    <div v-if="showSuggestions && isFocused && !searchSelectListShow && state.showSearchSuggestions" class="w-full mt-[10px] rounded-xl p-[10px]" :style="{ background }">
       <div 
         v-for="(suggestion, index) in searchSuggestions" 
         :key="index"
@@ -337,7 +370,10 @@ onMounted(() => {
     </div>
 
     <!-- 搜索引擎选择 -->
-    <div v-if="searchSelectListShow" class="w-full mt-[10px] rounded-xl p-[10px]" :style="{ background }">
+    <div v-if="searchSelectListShow" 
+         class="w-full mt-[10px] rounded-xl p-[10px]" 
+         :style="{ background }" 
+         ref="dropdownRef">
       <div class="flex items-center">
         <div class="flex items-center">
           <div
@@ -357,12 +393,25 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="mt-[10px]">
-        <NCheckbox v-model:checked="state.newWindowOpen" @update-checked="moduleConfig.saveToCloud(moduleConfigName, state)">
-          <span :style="{ color: textColor }">
-            {{ $t('deskModule.searchBox.openWithNewOpen') }}
-          </span>
-        </NCheckbox>
+      <!-- 水平排列的复选框 -->
+      <div class="mt-[10px] flex flex-row items-center flex-wrap">
+        <!-- 新窗口打开选项 -->
+        <div class="mr-4 mb-2">
+          <NCheckbox v-model:checked="state.newWindowOpen" @update-checked="moduleConfig.saveToCloud(moduleConfigName, state)">
+            <span :style="{ color: textColor }">
+              {{ $t('deskModule.searchBox.openWithNewOpen') }}
+            </span>
+          </NCheckbox>
+        </div>
+        
+        <!-- 显示搜索建议选项 -->
+        <div class="mb-2">
+          <NCheckbox v-model:checked="state.showSearchSuggestions" @update-checked="moduleConfig.saveToCloud(moduleConfigName, state)">
+            <span :style="{ color: textColor }">
+              {{ $t('deskModule.searchBox.searchSuggestionsShow') }}
+            </span>
+          </NCheckbox>
+        </div>
       </div>
     </div>
   </div>

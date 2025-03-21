@@ -80,8 +80,12 @@ const textColor = computed(() => {
 
       <div
         class="app-icon-small-icon overflow-hidden rounded-2xl sunpanel w-[70px] h-[70px] mx-auto rounded-2xl transition-all duration-200 hover:shadow-[0_0_20px_10px_rgba(0,0,0,0.2)]"
-        :title="itemInfo?.description">
-        <ItemIcon :item-icon="itemInfo?.icon" />
+        :title="itemInfo?.description"
+        :style="{ background: itemInfo?.icon?.backgroundColor || defaultBackground }">
+        <div class="w-[70px] h-full flex items-center justify-center">
+          <ItemIcon :item-icon="itemInfo?.icon" force-background="transparent" :size="50"
+            class="overflow-hidden rounded-xl" />
+        </div>
       </div>
       <div v-if="!iconTextIconHideTitle"
         class="app-icon-small-title text-center app-icon-text-shadow cursor-pointer mt-[2px]"

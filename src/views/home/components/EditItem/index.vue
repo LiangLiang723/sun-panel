@@ -184,7 +184,8 @@ function getGroupListOptions() {
         </NGrid>
 
         <NFormItem path="icon" :label="$t('common.icon')">
-          <IconEditor v-model:item-icon="model.icon" />
+          <!-- 传递description到IconEditor -->
+          <IconEditor v-model:item-icon="model.icon" :description="model.description" />
         </NFormItem>
         <NFormItem path="url" :label="$t('iconItem.url')">
           <!-- <NSelect :style="{ width: '100px' }" :options="urlProtocolOptions" /> -->
@@ -204,7 +205,8 @@ function getGroupListOptions() {
           </NInputGroup>
         </NFormItem>
         <NFormItem path="description" :label="$t('common.description')">
-          <NInput v-model:value="model.description" type="text" show-count :maxlength="100" />
+          <NInput v-model:value="model.description" type="text" show-count :maxlength="100" 
+            :placeholder="$t('iconItem.descriptionFormatHelp') + ' ' + $t('iconItem.descriptionFormatSize') + ', ' + $t('iconItem.descriptionFormatOffset')" />
         </NFormItem>
         <NFormItem path="openMethod" :label="$t('iconItem.openMethod')">
           <NSelect v-model:value="model.openMethod" :options="options" />

@@ -8,7 +8,8 @@ import { apiRespErrMsg } from '@/utils/request/apiMessage'
 import FileSelector from './FileSelector.vue'
 
 const props = defineProps<{
-  itemIcon: Panel.ItemIcon | null
+  itemIcon: Panel.ItemIcon | null,
+  description?: string // 添加对描述的接收
 }>()
 const emit = defineEmits<{
   (e: 'update:itemIcon', visible: Panel.ItemIcon): void // 定义修改父组件（prop内）的值的事件
@@ -29,7 +30,7 @@ const defautSwatchesBackground = [
 
 const initData: Panel.ItemIcon = {
   itemType: 2,
-  backgroundColor: '#2a2a2a6b',
+  backgroundColor: '#00000000', // 设置为透明背景
 }
 
 const itemIconInfo = computed({
@@ -44,6 +45,33 @@ const itemIconInfo = computed({
   set() {
     handleChange()
   },
+})
+
+// 从描述中提取图标大小
+const iconSize = computed(() => {
+  const description = props.description || ''
+  const match = description.match(/##(\d+)px##/)
+  return match ? parseInt(match[1]) : 50
+})
+
+// 从描述中提取图标位置偏移值
+const iconOffset = computed(() => {
+  const description = props.description || ''
+  const match = description.match(/##([-\d\.]+),([-\d\.]+)##/)
+  if (!match) return { x: 0, y: 0 }
+  
+  return {
+    x: parseFloat(match[1]),
+    y: parseFloat(match[2])
+  }
+})
+
+// 生成图标位置样式
+const iconPositionStyle = computed(() => {
+  const offset = iconOffset.value
+  return { 
+    transform: `translate(${offset.x * 50}%, ${offset.y * 50}%)`,
+  }
 })
 
 // 控制文件选择器模态框显示
@@ -126,8 +154,16 @@ function handleFileSelected(url: string) {
     <div class=" h-[100px]">
       <div class="flex">
         <div>
-          <div class="border rounded-2xl bg-slate-200 overflow-hidden rounded-2xl transparent-grid">
-            <ItemIcon :item-icon="itemIconInfo" />
+          <div class="border rounded-2xl overflow-hidden rounded-2xl transparent-grid">
+            <div class="w-[70px] h-[70px] flex items-center justify-center">
+              <ItemIcon 
+                :item-icon="itemIconInfo" 
+                :size="iconSize"
+                force-background="transparent"
+                :style="iconPositionStyle" 
+                :key="iconSize"
+              />
+            </div>
           </div>
         </div>
         <!-- 文字 -->

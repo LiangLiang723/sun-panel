@@ -346,6 +346,13 @@ function handleAddItem(itemIconGroupId?: number) {
   if (itemIconGroupId)
     currentAddItenIconGroupId.value = itemIconGroupId
 }
+
+// 清理描述中的标记
+function cleanDescription(description: string | undefined): string {
+  if (!description) return ''
+  // 移除大小标记和偏移标记
+  return description.replace(/##\d+px##/g, '').replace(/##[-\d\.]+,[-\d\.]+##/g, '')
+}
 </script>
 
 <template>
@@ -430,7 +437,7 @@ function handleAddItem(itemIconGroupId?: number) {
               <div v-if="itemGroup.items">
                 <VueDraggable v-model="itemGroup.items" item-key="sort" :animation="300" class="icon-info-box"
                   filter=".not-drag" :disabled="!itemGroup.sortStatus">
-                  <div v-for="item, index in itemGroup.items" :key="index" :title="item.description"
+                  <div v-for="item, index in itemGroup.items" :key="index" :title="cleanDescription(item.description)"
                     @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
                     <AppIcon :class="itemGroup.sortStatus ? 'cursor-move' : 'cursor-pointer'" :item-info="item"
                       :icon-text-color="panelState.panelConfig.iconTextColor"
@@ -456,7 +463,7 @@ function handleAddItem(itemIconGroupId?: number) {
               <div v-if="itemGroup.items">
                 <VueDraggable v-model="itemGroup.items" item-key="sort" :animation="300" class="icon-small-box"
                   filter=".not-drag" :disabled="!itemGroup.sortStatus">
-                  <div v-for="item, index in itemGroup.items" :key="index" :title="item.description"
+                  <div v-for="item, index in itemGroup.items" :key="index" :title="cleanDescription(item.description)"
                     @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
                     <AppIcon :class="itemGroup.sortStatus ? 'cursor-move' : 'cursor-pointer'" :item-info="item"
                       :icon-text-color="panelState.panelConfig.iconTextColor"

@@ -30,7 +30,7 @@ const defautSwatchesBackground = [
 
 const initData: Panel.ItemIcon = {
   itemType: 2,
-  backgroundColor: '#00000000', // 设置为透明背景
+  backgroundColor: '#2a2a2a6b',
 }
 
 const itemIconInfo = computed({

@@ -500,14 +500,14 @@ onMounted(() => {
       <div>
         <div class="mb-4">
           <label class="block mb-1 text-sm">{{ $t('apps.uploadsFileManager.fileNameLabel') }}</label>
-          <NInput v-model:value="renameModalState.newFileName" :placeholder="$t('apps.uploadsFileManager.enterNewFilename')" />
+          <NInput v-model:value="renameModalState.newFileName" :placeholder="$t('apps.uploadsFileManager.enterNewFilename')" @keydown.enter="submitRename" />
         </div>
         
         <div class="mb-4">
           <label class="block mb-1 text-sm">{{ $t('apps.uploadsFileManager.extensionLabel') }}</label>
           <div class="flex items-center">
             <span class="mr-1">.</span>
-            <NInput v-model:value="renameModalState.newFileExt" :placeholder="$t('apps.uploadsFileManager.enterExtension')" />
+            <NInput v-model:value="renameModalState.newFileExt" :placeholder="$t('apps.uploadsFileManager.enterExtension')" @keydown.enter="submitRename" />
           </div>
         </div>
         
